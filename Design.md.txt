@@ -1,0 +1,203 @@
+---
+name: Luminescent Bento HR
+colors:
+  surface: '#faf8ff'
+  surface-dim: '#d2d9f4'
+  surface-bright: '#faf8ff'
+  surface-container-lowest: '#ffffff'
+  surface-container-low: '#f2f3ff'
+  surface-container: '#eaedff'
+  surface-container-high: '#e2e7ff'
+  surface-container-highest: '#dae2fd'
+  on-surface: '#131b2e'
+  on-surface-variant: '#434655'
+  inverse-surface: '#283044'
+  inverse-on-surface: '#eef0ff'
+  outline: '#737686'
+  outline-variant: '#c3c6d7'
+  surface-tint: '#0053db'
+  primary: '#004ac6'
+  on-primary: '#ffffff'
+  primary-container: '#2563eb'
+  on-primary-container: '#eeefff'
+  inverse-primary: '#b4c5ff'
+  secondary: '#855300'
+  on-secondary: '#ffffff'
+  secondary-container: '#fea619'
+  on-secondary-container: '#684000'
+  tertiary: '#00569c'
+  on-tertiary: '#ffffff'
+  tertiary-container: '#196fc0'
+  on-tertiary-container: '#ebf1ff'
+  error: '#ba1a1a'
+  on-error: '#ffffff'
+  error-container: '#ffdad6'
+  on-error-container: '#93000a'
+  primary-fixed: '#dbe1ff'
+  primary-fixed-dim: '#b4c5ff'
+  on-primary-fixed: '#00174b'
+  on-primary-fixed-variant: '#003ea8'
+  secondary-fixed: '#ffddb8'
+  secondary-fixed-dim: '#ffb95f'
+  on-secondary-fixed: '#2a1700'
+  on-secondary-fixed-variant: '#653e00'
+  tertiary-fixed: '#d4e3ff'
+  tertiary-fixed-dim: '#a4c9ff'
+  on-tertiary-fixed: '#001c39'
+  on-tertiary-fixed-variant: '#004883'
+  background: '#faf8ff'
+  on-background: '#131b2e'
+  surface-variant: '#dae2fd'
+typography:
+  display-lg:
+    fontFamily: Inter
+    fontSize: 40px
+    fontWeight: '700'
+    lineHeight: 48px
+    letterSpacing: -0.02em
+  display-lg-mobile:
+    fontFamily: Inter
+    fontSize: 30px
+    fontWeight: '700'
+    lineHeight: 38px
+    letterSpacing: -0.015em
+  headline-lg:
+    fontFamily: Inter
+    fontSize: 28px
+    fontWeight: '600'
+    lineHeight: 36px
+    letterSpacing: -0.015em
+  headline-lg-mobile:
+    fontFamily: Inter
+    fontSize: 22px
+    fontWeight: '600'
+    lineHeight: 30px
+    letterSpacing: -0.01em
+  headline-sm:
+    fontFamily: Inter
+    fontSize: 20px
+    fontWeight: '600'
+    lineHeight: 28px
+    letterSpacing: -0.01em
+  title-md:
+    fontFamily: Inter
+    fontSize: 16px
+    fontWeight: '600'
+    lineHeight: 24px
+    letterSpacing: -0.005em
+  body-lg:
+    fontFamily: Inter
+    fontSize: 16px
+    fontWeight: '400'
+    lineHeight: 24px
+  body-md:
+    fontFamily: Inter
+    fontSize: 14px
+    fontWeight: '400'
+    lineHeight: 20px
+  label-md:
+    fontFamily: Inter
+    fontSize: 13px
+    fontWeight: '500'
+    lineHeight: 18px
+  label-sm:
+    fontFamily: Inter
+    fontSize: 11px
+    fontWeight: '600'
+    lineHeight: 16px
+    letterSpacing: 0.02em
+rounded:
+  sm: 0.5rem
+  DEFAULT: 1rem
+  md: 1.5rem
+  lg: 2rem
+  xl: 3rem
+  full: 9999px
+spacing:
+  gutter: 1.5rem
+  margin: 2rem
+  space-xs: 0.25rem
+  space-sm: 0.5rem
+  space-md: 1rem
+  space-lg: 1.5rem
+  space-xl: 2rem
+---
+
+## Brand & Style
+
+This design system establishes an airy, hyper-modern executive workspace engineered specifically for HR task tracking and team orchestration. The aesthetic pairs the structural precision of Bento-style modular grids with soft, atmospheric dimensionality. 
+
+Drawing from modern high-end product design, the interface pairs crisp, floating paper-white modules against an ice-tinted ambient canvas. Micro-interactions should feel tactile yet effortless: floating modules, crisp pill tags, dynamic counter widgets, and luminous accent callouts that turn high-density operational data into an inviting, glanceable dashboard. The tone is authoritative, optimistic, and radically uncluttered, eliminating cognitive fatigue during intensive workflow management.
+
+## Colors
+
+The palette is anchored by a soft atmospheric wash and punctuated with concentrated bursts of energy:
+
+- **Canvas Background:** A subtle linear gradient spanning from `#F0F4F8` at the top left to `#E6EFFD` at the bottom right.
+- **Card Surfaces:** Pure `#FFFFFF` resting cleanly above the ice-blue field.
+- **Primary Accent (Electric Royal Blue):** A bold `#2563EB` to `#1D4ED8` gradient used for key actions, progress indicators, active navigation tabs, and pivotal interactive nodes.
+- **Secondary Accent (Sun Yellow):** A warm `#FBBF24` (surface tint) shifting to `#F59E0B` (solid base), reserved for priority flags, approaching deadlines, status pings, and highlight callouts.
+- **Neutrals & Typography:** Primary body and heading copy utilizes deep slate `#0F172A` for high-contrast legibility, with muted metadata rendered in `#64748B` and structural inner borders set to `#F1F5F9` or `#E2E8F0`.
+
+## Typography
+
+The typography leverages clean, geometric grotesque letterforms configured for seamless bilingual harmony between Latin characters and Thai scripts (paired with Noto Sans Thai / Prompt at the platform level). 
+
+- **Display & Headings:** Rendered in tight, bold cuts (`-0.02em` tracking) to create a striking architectural presence across asymmetrical bento modules.
+- **Body & Numerical Readouts:** Optimized for tabular scannability, task lists, and dense audit logs with standard spacing and generous line heights (`1.45` to `1.5`).
+- **Caps & Micro-Labels:** Used on status badges, department flags, and metric category trackers with subtle positive tracking (`+0.02em`) to maintain sharp legibility at small sizes.
+
+## Layout & Spacing
+
+The interface is driven by a responsive Bento Grid model built on a 12-column layout for desktop environments:
+
+- **Desktop (12 Columns):** Employs asymmetric column-spanning cards (`span-8`, `span-4`, `span-3`, `span-6`) with uniform `1.5rem` (24px) gutters and `2rem` (32px) screen margins. Cards vary in vertical scale to accommodate varying data densities (e.g., active onboarding pipeline next to high-level sprint metrics).
+- **Tablet (6 Columns):** Consolidates bento cards into balanced 3-column pairs or full-width 6-column modules, retaining a `1rem` (16px) gutter.
+- **Mobile (Single Column):** Collapses into a vertical stack with `1rem` margin and `0.75rem` gap, prioritizing high-priority metric widgets and task checklists at the top.
+- **Internal Card Padding:** Uses `1.5rem` (`space-lg`) for major visual containers and `1rem` (`space-md`) for compact telemetry tiles.
+
+## Elevation & Depth
+
+Visual hierarchy relies on diffuse, multi-layered ambient drop shadows that simulate soft natural light falling over frosted planes:
+
+- **Canvas Tier:** The gradient background (`#F0F4F8` to `#E6EFFD`) acts as the passive floor.
+- **Resting Bento Card Tier:** Floating pure white (`#FFFFFF`) containers lifted with a dual-stage shadow:
+  - Ambient: `0 12px 32px -8px rgba(37, 99, 235, 0.07)`
+  - Edge contact: `0 2px 6px 0 rgba(15, 23, 42, 0.03)`
+  - Border: 1px solid `rgba(255, 255, 255, 0.8)` for a crisp, glass-like rim highlight.
+- **Hover & Interactive Focus:** Cards and actionable modules elevate slightly with a transform translateY of `-2px` and an enhanced shadow: `0 20px 40px -10px rgba(37, 99, 235, 0.12)`.
+- **Floating Modals & Flyouts:** Crisp surface overlays with `0 24px 48px -12px rgba(15, 23, 42, 0.14)` paired with `backdrop-filter: blur(12px)`.
+
+## Shapes
+
+The geometric signature is defined by ultra-smooth, generous curvature that brings a friendly, polished aesthetic to workplace tooling:
+
+- **Bento Modules & Major Cards:** Apply full `rounded-3xl` (24px to 32px depending on card scale) with squircular smoothing.
+- **Interactive Controls & Fields:** Buttons, search fields, and form controls utilize pill silhouettes or continuous `rounded-xl` curves (12px to 16px).
+- **Chips, Avatars, and Badges:** Fully circular or continuous full-radius pill styling (`rounded-full`).
+
+## Components
+
+### Buttons
+- **Primary Button:** Gradient fill from `#2563EB` to `#1D4ED8`, pure white text, fully rounded pill shape (`rounded-full`), padded `0.75rem 1.5rem`. Subtle drop shadow: `0 8px 16px -4px rgba(37, 99, 235, 0.35)`.
+- **Secondary Button:** Pure white background, `1px solid #E2E8F0`, dark text (`#0F172A`), shifts to `#F8FAFC` on hover.
+- **Accent Action:** Gradient fill from `#FBBF24` to `#F59E0B`, deep slate text (`#0F172A`), for urgent priority updates or reward endorsements.
+
+### Cards (Bento Boxes)
+- Pure `#FFFFFF` surfaces featuring `rounded-3xl` (24px desktop / 20px mobile) geometry.
+- Content layouts incorporate asymmetric internal header bars, metric callout tiles, dynamic avatar overlaps, and task completion dials.
+
+### Chips & Badges
+- **Status Chips:** Pill-shaped tags (`rounded-full`) with semi-transparent tinted backgrounds. For "Urgent HR Escalation": background `rgba(245, 158, 11, 0.15)`, text `#D97706`. For "Active Review": background `rgba(37, 99, 235, 0.10)`, text `#2563EB`.
+
+### Checkboxes & Task Trackers
+- Interactive checkboxes are `20px` squares with `rounded-md` (6px) corners. 
+- Inactive state: `2px solid #CBD5E1`.
+- Checked state: `#2563EB` fill displaying a sharp white micro-check with spring transition.
+
+### Input Fields & Search Bars
+- Floating pill-style containers (`rounded-full`) with pure white backgrounds, subtle inset shadows, and `1px solid #E2E8F0`. Focus state smoothly activates a `2px solid #2563EB` outline with an exterior glow ring (`rgba(37, 99, 235, 0.15)`).
+
+### Specialized HR Components
+- **Progress Trackers:** Fluid pill track in `#EFF6FF` containing a rich `#2563EB` fill indicator with rounded ends.
+- **Stacked Avatar Clusters:** Circular `36px` user profile elements with white `2px` borders overlapping by `-8px`, displaying active HR assignees.

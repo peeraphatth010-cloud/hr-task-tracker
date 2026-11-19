@@ -1,0 +1,78 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html,
+  body {
+    margin: 0;
+    padding: 0;
+    background: linear-gradient(135deg, #f0f4f8 0%, #e6effd 100%);
+    color: #131b2e;
+    font-family: "Noto Sans Thai", "Inter", sans-serif;
+    overscroll-behavior: none;
+  }
+}
+
+/* Custom sleek scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #c3c6d7;
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #737686;
+}
+
+/* Hover light beam & glowing rim animation for Dashboard cards */
+@keyframes lightSweep {
+  0% {
+    transform: translateX(-130%) skewX(-25deg);
+  }
+  100% {
+    transform: translateX(230%) skewX(-25deg);
+  }
+}
+
+.card-hover-beam {
+  position: relative;
+  overflow: hidden;
+  transition: transform 0.25s cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 0.25s cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 0.25s ease;
+}
+
+.card-hover-beam::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 55%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0) 0%,
+    rgba(255, 255, 255, 0.65) 50%,
+    rgba(255, 255, 255, 0) 100%
+  );
+  transform: translateX(-140%) skewX(-25deg);
+  pointer-events: none;
+  z-index: 20;
+}
+
+.card-hover-beam:hover {
+  transform: translateY(-4px);
+}
+
+.card-hover-beam:hover::after {
+  animation: lightSweep 0.75s cubic-bezier(0.22, 1, 0.36, 1);
+}
