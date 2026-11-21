@@ -140,7 +140,11 @@ export default function PresetsView({
   onRefreshTasks,
 }: PresetsViewProps) {
   const [selectedPresetId, setSelectedPresetId] = useState<string>(presets[0]?.id || "");
-  const [quickDueDate, setQuickDueDate] = useState<string>("2026-11-28");
+  const [quickDueDate, setQuickDueDate] = useState<string>(() => {
+    const d = new Date();
+    d.setDate(d.getDate() + 7);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  });
   const [launching, setLaunching] = useState<boolean>(false);
 
   // Google Calendar + GAS Integration State

@@ -42,6 +42,21 @@ const PRIORITY_BADGE: Record<
   },
 };
 
+const THAI_MONTHS_FULL = [
+  "มกราคม",
+  "กุมภาพันธ์",
+  "มีนาคม",
+  "เมษายน",
+  "พฤษภาคม",
+  "มิถุนายน",
+  "กรกฎาคม",
+  "สิงหาคม",
+  "กันยายน",
+  "ตุลาคม",
+  "พฤศจิกายน",
+  "ธันวาคม",
+];
+
 export default function DashboardView({
   tasks,
   categories,
@@ -49,6 +64,9 @@ export default function DashboardView({
   onSelectTask,
   onNavigateView,
 }: DashboardViewProps) {
+  const now = new Date();
+  const currentMonthName = THAI_MONTHS_FULL[now.getMonth()];
+  const currentYearDisplay = useBuddhistEra ? now.getFullYear() + 543 : now.getFullYear();
   const totalTasks = tasks.length;
   const doneTasks = tasks.filter((t) => t.status === "done");
   const inProgressTasks = tasks.filter((t) => t.status === "in_progress" || t.status === "waiting");
@@ -106,7 +124,7 @@ export default function DashboardView({
         <div>
           <span className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-blue-50 text-primary font-label-md font-bold mb-2">
             <span className="w-2.5 h-2.5 rounded-full bg-primary animate-pulse"></span>
-            ประจำเดือน พฤศจิกายน {useBuddhistEra ? "2569" : "2026"}
+            ประจำเดือน {currentMonthName} {currentYearDisplay}
           </span>
           <h1 className="text-2xl md:text-3xl font-bold text-slate-900">
             สรุปภาพรวมงาน HR (Dashboard)

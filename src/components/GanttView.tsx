@@ -30,6 +30,21 @@ const THAI_MONTHS = [
   "ธันวาคม",
 ];
 
+const THAI_MONTHS_SHORT = [
+  "ม.ค.",
+  "ก.พ.",
+  "มี.ค.",
+  "เม.ย.",
+  "พ.ค.",
+  "มิ.ย.",
+  "ก.ค.",
+  "ส.ค.",
+  "ก.ย.",
+  "ต.ค.",
+  "พ.ย.",
+  "ธ.ค.",
+];
+
 export default function GanttView({
   tasks,
   categories,
@@ -39,6 +54,13 @@ export default function GanttView({
   onAddDependency,
   onRemoveDependency,
 }: GanttViewProps) {
+  const now = new Date();
+  const realYear = now.getFullYear();
+  const realMonth = now.getMonth() + 1;
+  const realTodayDay = now.getDate();
+
+  const [year, setYear] = useState<number>(realYear);
+  const [month, setMonth] = useState<number>(realMonth);
   const [selectedCatId, setSelectedCatId] = useState<string>("all");
   const [hideDone, setHideDone] = useState<boolean>(false);
   const [collapseCategories, setCollapseCategories] = useState<Record<string, boolean>>({});
@@ -46,10 +68,33 @@ export default function GanttView({
   const [depSourceId, setDepSourceId] = useState<string>("");
   const [depTargetId, setDepTargetId] = useState<string>("");
 
-  const year = 2026;
-  const month = 11; // November
-  const daysInMonth = 30;
-  const todayDay = 19; // Nov 19, 2026
+  const daysInMonth = new Date(year, month, 0).getDate();
+  const isCurrentMonth = year === realYear && month === realMonth;
+  const todayDay = realTodayDay;
+  const shortMonth = THAI_MONTHS_SHORT[month - 1];
+
+  const prevMonth = () => {
+    if (month === 1) {
+      setMonth(12);
+      setYear((y) => y - 1);
+    } else {
+      setMonth((m) => m - 1);
+    }
+  };
+
+  const nextMonth = () => {
+    if (month === 12) {
+      setMonth(1);
+      setYear((y) => y + 1);
+    } else {
+      setMonth((m) => m + 1);
+    }
+  };
+
+  const goToTodayMonth = () => {
+    setYear(realYear);
+    setMonth(realMonth);
+  };
 
   const priorityRank = { urgent: 0, high: 1, medium: 2, low: 3 };
 
@@ -76,12 +121,13 @@ export default function GanttView({
     .filter((g) => g.items.length > 0);
 
   const getDayOfMonth = (dateStr: string | null): number => {
-    if (!dateStr) return todayDay;
+    if (!dateStr) return Math.min(todayDay, daysInMonth);
     const parts = dateStr.split("-").map(Number);
-    if (parts.length !== 3) return todayDay;
-    if (parts[1] < month) return 1;
-    if (parts[1] > month) return daysInMonth;
-    return Math.min(Math.max(parts[2], 1), daysInMonth);
+    if (parts.length !== 3) return Math.min(todayDay, daysInMonth);
+    const [y, m, d] = parts;
+    if (y < year || (y === year && m < month)) return 1;
+    if (y > year || (y === year && m > month)) return daysInMonth;
+    return Math.min(Math.max(d, 1), daysInMonth);
   };
 
   const toggleCategoryCollapse = (catId: string) => {
@@ -105,13 +151,36 @@ export default function GanttView({
       {/* Top Header & Quick Filters */}
       <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-200 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2 mb-1">
-            <span className="px-3 py-1 rounded-xl bg-blue-50 text-primary text-xs font-extrabold">
-              📅 {THAI_MONTHS[month - 1]} {useBuddhistEra ? year + 543 : year}
-            </span>
-            <span className="px-3 py-1 rounded-xl bg-blue-600 text-white text-xs font-extrabold">
-              วันนี้: วันที่ {todayDay} พ.ย.
-            </span>
+          <div className="flex items-center gap-2 mb-1 flex-wrap">
+            <div className="inline-flex items-center gap-1 bg-blue-50 text-primary rounded-xl px-1.5 py-0.5">
+              <button
+                type="button"
+                onClick={prevMonth}
+                className="w-6 h-6 rounded-lg hover:bg-blue-100 flex items-center justify-center"
+                title="เดือนก่อนหน้า"
+              >
+                <span className="material-symbols-outlined text-base">chevron_left</span>
+              </button>
+              <span className="px-2 py-0.5 text-xs font-extrabold">
+                📅 {THAI_MONTHS[month - 1]} {useBuddhistEra ? year + 543 : year}
+              </span>
+              <button
+                type="button"
+                onClick={nextMonth}
+                className="w-6 h-6 rounded-lg hover:bg-blue-100 flex items-center justify-center"
+                title="เดือนถัดไป"
+              >
+                <span className="material-symbols-outlined text-base">chevron_right</span>
+              </button>
+            </div>
+            <button
+              type="button"
+              onClick={goToTodayMonth}
+              className="px-3 py-1 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-extrabold transition-colors"
+              title="กลับไปเดือนปัจจุบัน"
+            >
+              วันนี้: วันที่ {realTodayDay} {THAI_MONTHS_SHORT[realMonth - 1]}
+            </button>
           </div>
           <h1 className="text-2xl md:text-3xl font-bold text-slate-900">
             แผนผังเวลาและลำดับงาน (Timeline & Gantt Chart)
@@ -177,25 +246,39 @@ export default function GanttView({
               <div className="col-span-8">
                 {/* 4 Weeks Header */}
                 <div className="grid grid-cols-4 gap-1 text-center text-xs font-extrabold mb-2">
-                  <div className="bg-slate-100 text-slate-700 py-1.5 rounded-l-xl">
-                    สัปดาห์ที่ 1 (1 – 7 พ.ย.)
-                  </div>
-                  <div className="bg-slate-100/70 text-slate-700 py-1.5">
-                    สัปดาห์ที่ 2 (8 – 14 พ.ย.)
-                  </div>
-                  <div className="bg-blue-100 text-blue-900 py-1.5 ring-1 ring-blue-300">
-                    สัปดาห์ปัจจุบัน (15 – 21 พ.ย.)
-                  </div>
-                  <div className="bg-slate-100 text-slate-700 py-1.5 rounded-r-xl">
-                    สัปดาห์ที่ 4 (22 – 30 พ.ย.)
-                  </div>
+                  {[
+                    { idx: 1, start: 1, end: 7, rounded: "rounded-l-xl" },
+                    { idx: 2, start: 8, end: 14, rounded: "" },
+                    { idx: 3, start: 15, end: 21, rounded: "" },
+                    { idx: 4, start: 22, end: daysInMonth, rounded: "rounded-r-xl" },
+                  ].map((w) => {
+                    const isCurrentWeek =
+                      isCurrentMonth && todayDay >= w.start && todayDay <= w.end;
+                    return (
+                      <div
+                        key={w.idx}
+                        className={`py-1.5 ${w.rounded} ${
+                          isCurrentWeek
+                            ? "bg-blue-100 text-blue-900 ring-1 ring-blue-300"
+                            : w.idx % 2 === 0
+                            ? "bg-slate-100/70 text-slate-700"
+                            : "bg-slate-100 text-slate-700"
+                        }`}
+                      >
+                        {isCurrentWeek
+                          ? `สัปดาห์ปัจจุบัน (${w.start} – ${w.end} ${shortMonth})`
+                          : `สัปดาห์ที่ ${w.idx} (${w.start} – ${w.end} ${shortMonth})`}
+                      </div>
+                    );
+                  })}
                 </div>
 
-                {/* 30 Days Horizontal Strip — FIXED: flex flex-row w-full */}
+                {/* Days Horizontal Strip — FIXED: flex flex-row w-full */}
                 <div className="flex flex-row items-center w-full border-t border-slate-100 pt-1.5">
                   {Array.from({ length: daysInMonth }, (_, i) => i + 1).map((d) => {
-                    const isToday = d === todayDay;
-                    const isWeekend = d % 7 === 0 || d % 7 === 1;
+                    const isToday = isCurrentMonth && d === todayDay;
+                    const dayOfWeek = new Date(year, month - 1, d).getDay();
+                    const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
                     return (
                       <div
                         key={d}
@@ -326,7 +409,7 @@ export default function GanttView({
 
                                   <div className="text-xs font-semibold text-slate-500 mt-1 flex items-center gap-2 flex-wrap">
                                     <span>
-                                      📅 {startDay} – {endDay} พ.ย. ({durationDays} วัน)
+                                      📅 {startDay} – {endDay} {shortMonth} ({durationDays} วัน)
                                     </span>
                                     {taskDeps.length > 0 && (
                                       <span
@@ -371,33 +454,39 @@ export default function GanttView({
 
                               {/* Right Timeline Bar Track (Span 8) */}
                               <div className="col-span-8 relative h-11 flex items-center">
-                                {/* Background 30-day vertical grid cells for easy visual alignment */}
+                                {/* Background vertical grid cells for easy visual alignment */}
                                 <div className="absolute inset-0 flex flex-row pointer-events-none">
                                   {Array.from({ length: daysInMonth }, (_, i) => i + 1).map(
-                                    (d) => (
-                                      <div
-                                        key={d}
-                                        style={{ width: `${100 / daysInMonth}%` }}
-                                        className={`h-full border-r border-slate-100 ${
-                                          d === todayDay
-                                            ? "bg-blue-50/70"
-                                            : d % 7 === 0 || d % 7 === 1
-                                            ? "bg-slate-50/50"
-                                            : ""
-                                        }`}
-                                      />
-                                    )
+                                    (d) => {
+                                      const dayOfWeek = new Date(year, month - 1, d).getDay();
+                                      const isWknd = dayOfWeek === 0 || dayOfWeek === 6;
+                                      return (
+                                        <div
+                                          key={d}
+                                          style={{ width: `${100 / daysInMonth}%` }}
+                                          className={`h-full border-r border-slate-100 ${
+                                            isCurrentMonth && d === todayDay
+                                              ? "bg-blue-50/70"
+                                              : isWknd
+                                              ? "bg-slate-50/50"
+                                              : ""
+                                          }`}
+                                        />
+                                      );
+                                    }
                                   )}
                                 </div>
 
                                 {/* Today Vertical Highlight Line */}
-                                <div
-                                  style={{
-                                    left: `${((todayDay - 0.5) / daysInMonth) * 100}%`,
-                                  }}
-                                  className="absolute top-0 bottom-0 w-0.5 bg-blue-600 z-10 pointer-events-none"
-                                  title="วันนี้ (19 พ.ย.)"
-                                />
+                                {isCurrentMonth && (
+                                  <div
+                                    style={{
+                                      left: `${((todayDay - 0.5) / daysInMonth) * 100}%`,
+                                    }}
+                                    className="absolute top-0 bottom-0 w-0.5 bg-blue-600 z-10 pointer-events-none"
+                                    title={`วันนี้ (${realTodayDay} ${THAI_MONTHS_SHORT[realMonth - 1]})`}
+                                  />
+                                )}
 
                                 {/* Dashed Dependency Arrow before bar */}
                                 {taskDeps.length > 0 && (
@@ -429,7 +518,7 @@ export default function GanttView({
                                       ? "bg-amber-500 text-slate-950"
                                       : "bg-blue-600 text-white"
                                   }`}
-                                  title={`${task.title} (${startDay} - ${endDay} พ.ย.)`}
+                                  title={`${task.title} (${startDay} - ${endDay} ${shortMonth})`}
                                 >
                                   {/* Progress Fill Overlay */}
                                   {!isDone && pct > 0 && (
@@ -440,8 +529,8 @@ export default function GanttView({
                                   )}
                                   <span className="relative z-10 truncate">
                                     {startDay === endDay
-                                      ? `${startDay} พ.ย.`
-                                      : `${startDay}–${endDay} พ.ย.`}
+                                      ? `${startDay} ${shortMonth}`
+                                      : `${startDay}–${endDay} ${shortMonth}`}
                                     {widthPct > 14 ? ` • ${task.title}` : ""}
                                   </span>
                                   {widthPct > 8 && (
@@ -484,7 +573,7 @@ export default function GanttView({
             </span>
             <span className="flex items-center gap-1.5">
               <span className="w-0.5 h-4 bg-blue-600 inline-block"></span>
-              เส้นวันนี้ (19 พ.ย.)
+              เส้นวันนี้ ({realTodayDay} {THAI_MONTHS_SHORT[realMonth - 1]})
             </span>
           </div>
 

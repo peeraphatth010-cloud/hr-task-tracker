@@ -374,6 +374,12 @@ export default function HomePage() {
   };
 
   const openNewTaskDrawer = (initialStatus: TaskStatus = "todo") => {
+    const today = new Date();
+    const due = new Date(today);
+    due.setDate(due.getDate() + 7);
+    const fmt = (d: Date) =>
+      `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+
     setSelectedTask({
       id: "",
       code: null,
@@ -384,8 +390,8 @@ export default function HomePage() {
       status: initialStatus,
       priority: "medium",
       category_id: categories[0]?.id || null,
-      start_date: "2026-11-19",
-      due_date: "2026-11-26",
+      start_date: fmt(today),
+      due_date: fmt(due),
       completed_at: null,
       include_in_report: false,
       visibility: "team",
@@ -460,7 +466,9 @@ export default function HomePage() {
             onClick={() => setUseBuddhistEra(!useBuddhistEra)}
             className="px-3 py-1.5 rounded-xl bg-white text-primary font-extrabold border border-slate-200 shadow-sm hover:bg-blue-50"
           >
-            {useBuddhistEra ? "พ.ศ. (2569)" : "ค.ศ. (2026)"}
+            {useBuddhistEra
+              ? `พ.ศ. (${new Date().getFullYear() + 543})`
+              : `ค.ศ. (${new Date().getFullYear()})`}
           </button>
         </div>
       </aside>
@@ -708,7 +716,12 @@ export default function HomePage() {
                     </p>
                   </div>
                   <button
-                    onClick={() => handleLaunchPreset(p, "2026-11-28")}
+                    onClick={() => {
+                      const d = new Date();
+                      d.setDate(d.getDate() + (p.duration_days || 7));
+                      const dueStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+                      handleLaunchPreset(p, dueStr);
+                    }}
                     className="px-4 py-2 rounded-full bg-primary-container text-white font-label-md font-bold shrink-0 shadow-sm hover:opacity-95"
                   >
                     + สร้างงาน

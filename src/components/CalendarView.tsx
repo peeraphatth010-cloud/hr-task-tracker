@@ -33,8 +33,13 @@ export default function CalendarView({
   useBuddhistEra,
   onSelectTask,
 }: CalendarViewProps) {
-  const [year, setYear] = useState<number>(2026);
-  const [monthIdx, setMonthIdx] = useState<number>(10); // 10 = November
+  const now = new Date();
+  const realYear = now.getFullYear();
+  const realMonthIdx = now.getMonth();
+  const realDay = now.getDate();
+
+  const [year, setYear] = useState<number>(realYear);
+  const [monthIdx, setMonthIdx] = useState<number>(realMonthIdx);
 
   const firstDayOfWeek = new Date(year, monthIdx, 1).getDay();
   const daysInMonth = new Date(year, monthIdx + 1, 0).getDate();
@@ -129,7 +134,7 @@ export default function CalendarView({
             }
 
             const dayTasks = getTasksForDay(day);
-            const isToday = year === 2026 && monthIdx === 10 && day === 19;
+            const isToday = year === realYear && monthIdx === realMonthIdx && day === realDay;
 
             return (
               <div
