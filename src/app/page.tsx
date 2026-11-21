@@ -10,7 +10,7 @@ import {
   TaskDependency,
   TaskStatus,
 } from "@/lib/types";
-import { getDaysDiffFromToday } from "@/lib/excel-export";
+import { getDaysDiffFromToday, getNextDueDateForPreset } from "@/lib/excel-export";
 import DashboardView from "@/components/DashboardView";
 import KanbanView from "@/components/KanbanView";
 import ListView from "@/components/ListView";
@@ -269,9 +269,8 @@ export default function HomePage() {
 
   const handleLaunchPreset = async (preset: Preset, dueDateStr: string) => {
     const dueObj = new Date(`${dueDateStr}T00:00:00Z`);
-    const startObj = new Date(
-      dueObj.getTime() - (preset.duration_days || 5) * 24 * 60 * 60 * 1000
-    );
+    const offsetDays = Math.max(0, (preset.duration_days || 1) - 1);
+    const startObj = new Date(dueObj.getTime() - offsetDays * 24 * 60 * 60 * 1000);
     const startDateStr = startObj.toISOString().slice(0, 10);
     const code = `TK-${Math.floor(300 + Math.random() * 699)}`;
 
@@ -757,12 +756,7 @@ export default function HomePage() {
                     </p>
                   </div>
                   <button
-                    onClick={() => {
-                      const d = new Date();
-                      d.setDate(d.getDate() + (p.duration_days || 7));
-                      const dueStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-                      handleLaunchPreset(p, dueStr);
-                    }}
+                    onClick={() => handleLaunchPreset(p, getNextDueDateForPreset(p))}
                     className="px-4 py-2 rounded-full bg-primary-container text-white font-label-md font-bold shrink-0 shadow-sm hover:opacity-95"
                   >
                     + สร้างงาน

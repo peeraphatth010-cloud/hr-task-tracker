@@ -1,5 +1,5 @@
 import ExcelJS from "exceljs";
-import { Category, Task } from "./types";
+import { Category, Preset, Task } from "./types";
 
 const THAI_MONTHS_SHORT = [
   "ม.ค.",
@@ -34,6 +34,55 @@ export function getDaysDiffFromToday(dueDateStr: string | null | undefined): num
   if (!y || !m || !d) return null;
   const due = new Date(y, m - 1, d);
   return Math.round((due.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+}
+
+export function getNextDueDateForPreset(preset: Preset): string {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = now.getMonth(); // 0-indexed
+  const d = now.getDate();
+
+  const fmt = (dt: Date) =>
+    `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}-${String(
+      dt.getDate()
+    ).padStart(2, "0")}`;
+
+  if (preset.recurrence_type === "monthly" && preset.recurrence_day) {
+    const maxDayThisMonth = new Date(y, m + 1, 0).getDate();
+    const targetDayThisMonth = Math.min(preset.recurrence_day, maxDayThisMonth);
+    if (targetDayThisMonth >= d) {
+      return fmt(new Date(y, m, targetDayThisMonth));
+    }
+    const nextMonthBase = new Date(y, m + 1, 1);
+    const maxDayNextMonth = new Date(
+      nextMonthBase.getFullYear(),
+      nextMonthBase.getMonth() + 1,
+      0
+    ).getDate();
+    return fmt(
+      new Date(
+        nextMonthBase.getFullYear(),
+        nextMonthBase.getMonth(),
+        Math.min(preset.recurrence_day, maxDayNextMonth)
+      )
+    );
+  }
+
+  if (preset.recurrence_type === "yearly" && preset.recurrence_day) {
+    const targetM = (preset.recurrence_month ? preset.recurrence_month - 1 : m);
+    const maxDayThisYear = new Date(y, targetM + 1, 0).getDate();
+    const candidate = new Date(y, targetM, Math.min(preset.recurrence_day, maxDayThisYear));
+    const todayStart = new Date(y, m, d);
+    if (candidate >= todayStart) {
+      return fmt(candidate);
+    }
+    const maxDayNextYear = new Date(y + 1, targetM + 1, 0).getDate();
+    return fmt(new Date(y + 1, targetM, Math.min(preset.recurrence_day, maxDayNextYear)));
+  }
+
+  const fallback = new Date(y, m, d);
+  fallback.setDate(fallback.getDate() + (preset.duration_days || 7));
+  return fmt(fallback);
 }
 
 export function getStatusLabel(status: Task["status"]): string {

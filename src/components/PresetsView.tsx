@@ -2,6 +2,7 @@
 
 import React, { useState, useRef, useEffect } from "react";
 import { Category, ChecklistTemplate, Preset, RecurrenceType, Task, TaskPriority } from "@/lib/types";
+import { formatThaiDate, getNextDueDateForPreset } from "@/lib/excel-export";
 import { supabase } from "@/lib/supabase";
 
 interface PresetsViewProps {
@@ -422,7 +423,14 @@ export default function PresetsView({
                 </label>
                 <select
                   value={selectedPresetId}
-                  onChange={(e) => setSelectedPresetId(e.target.value)}
+                  onChange={(e) => {
+                    const id = e.target.value;
+                    setSelectedPresetId(id);
+                    const found = presets.find((p) => p.id === id);
+                    if (found) {
+                      setQuickDueDate(getNextDueDateForPreset(found));
+                    }
+                  }}
                   className="w-full px-4 py-2.5 rounded-full bg-surface-container-low text-on-surface font-label-md font-semibold focus:outline-none focus:ring-2 focus:ring-primary"
                 >
                   {presets.map((p) => (
@@ -588,16 +596,21 @@ export default function PresetsView({
                   </div>
 
                   {/* Card Footer */}
-                  <div className="flex items-center justify-between pt-2 border-t border-surface-container">
-                    <span
-                      className="font-label-sm text-on-surface-variant"
-                      title="ระบบอัตโนมัติจะสร้างการ์ดงานนี้รอไว้ก่อนถึงวันครบกำหนด"
-                    >
-                      สร้างรอล่วงหน้า {preset.create_ahead_days || 5} วัน
-                    </span>
+                  <div className="flex items-center justify-between gap-2 pt-2 border-t border-surface-container flex-wrap">
+                    <div className="flex flex-col">
+                      <span
+                        className="font-label-sm text-on-surface-variant"
+                        title="ระบบอัตโนมัติจะสร้างการ์ดงานนี้รอไว้ก่อนถึงวันครบกำหนด"
+                      >
+                        สร้างอัตโนมัติล่วงหน้า {preset.create_ahead_days || 5} วัน
+                      </span>
+                      <span className="text-xs font-bold text-primary">
+                        รอบถัดไป: {formatThaiDate(getNextDueDateForPreset(preset), true)}
+                      </span>
+                    </div>
                     <button
                       disabled={isViewer}
-                      onClick={() => onLaunchPreset(preset, quickDueDate)}
+                      onClick={() => onLaunchPreset(preset, getNextDueDateForPreset(preset))}
                       className="px-4 py-2 rounded-full bg-primary-container text-on-primary font-label-md font-bold shadow-sm hover:opacity-95 transition-all flex items-center gap-1 disabled:opacity-50"
                     >
                       <span className="material-symbols-outlined text-base">add</span>
@@ -791,12 +804,24 @@ export default function PresetsView({
               </div>
 
               {/* Helpful explanation box for create_ahead_days */}
-              <div className="p-3 rounded-2xl bg-blue-50/80 border border-blue-200 text-xs text-slate-700 leading-relaxed">
-                💡 <strong>สร้างงานรอล่วงหน้า {newCreateAhead} วัน</strong> หมายถึง: ถ้ารอบงานนี้ครบกำหนดส่งวันที่{" "}
-                <strong>{newRecurrenceDay || 15}</strong> ระบบอัตโนมัติจะเสกการ์ดงานนี้ขึ้นมาวางรอในช่อง{" "}
-                <em>รอดำเนินการ (To Do)</em> ล่วงหน้าตั้งแต่วันที่{" "}
-                <strong>{Math.max(1, (newRecurrenceDay || 15) - newCreateAhead)}</strong> เพื่อที่คุณจะได้เห็นงานและมีเวลาเตรียมตัวทำก่อนถึงเดดไลน์ครับ
-              </div>
+              {(() => {
+                const sampleDue = new Date();
+                sampleDue.setMonth(sampleDue.getMonth() + 1, Math.min(newRecurrenceDay || 15, 28));
+                const sampleCreate = new Date(sampleDue);
+                sampleCreate.setDate(sampleCreate.getDate() - (newCreateAhead || 0));
+                const fmtIso = (dt: Date) =>
+                  `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}-${String(
+                    dt.getDate()
+                  ).padStart(2, "0")}`;
+                return (
+                  <div className="p-3 rounded-2xl bg-blue-50/80 border border-blue-200 text-xs text-slate-700 leading-relaxed">
+                    💡 <strong>สร้างงานรอล่วงหน้า {newCreateAhead} วัน</strong> หมายถึง: ระบบอัตโนมัติ (รันทุกวัน 00:30 น.) จะสร้างการ์ดงานรอบถัดไปมารอไว้ในช่อง{" "}
+                    <em>รอดำเนินการ (To Do)</em> ก่อนถึงวันครบกำหนด {newCreateAhead} วัน เช่น รอบที่ครบกำหนด{" "}
+                    <strong>{formatThaiDate(fmtIso(sampleDue), true)}</strong> ระบบจะสร้างงานให้อัตโนมัติตั้งแต่วันที่{" "}
+                    <strong>{formatThaiDate(fmtIso(sampleCreate), true)}</strong> เพื่อให้มีเวลาเตรียมตัวก่อนถึงเดดไลน์ครับ
+                  </div>
+                );
+              })()}
 
               <div>
                 <label className="font-label-sm font-bold text-on-surface-variant block mb-1">
