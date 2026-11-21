@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { supabase } from "@/lib/supabase";
 import {
   Category,
@@ -10,7 +10,7 @@ import {
   TaskDependency,
   TaskStatus,
 } from "@/lib/types";
-import { getDaysDiffFromToday, getNextDueDateForPreset } from "@/lib/excel-export";
+import { formatThaiDate, getDaysDiffFromToday, getNextDueDateForPreset } from "@/lib/excel-export";
 import DashboardView from "@/components/DashboardView";
 import KanbanView from "@/components/KanbanView";
 import ListView from "@/components/ListView";
@@ -38,6 +38,26 @@ export default function HomePage() {
   // Active Modals / Drawers
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [presetQuickModalOpen, setPresetQuickModalOpen] = useState<boolean>(false);
+  const [notifOpen, setNotifOpen] = useState<boolean>(false);
+  const notifRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!notifOpen) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (notifRef.current && !notifRef.current.contains(e.target as Node)) {
+        setNotifOpen(false);
+      }
+    };
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setNotifOpen(false);
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    window.addEventListener("keydown", handleKey);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      window.removeEventListener("keydown", handleKey);
+    };
+  }, [notifOpen]);
 
   // Single-task Time Tracker State
   const [activeTimerTaskId, setActiveTimerTaskId] = useState<string | null>(null);
@@ -102,11 +122,18 @@ export default function HomePage() {
     return true;
   });
 
-  const d3AlertCount = visibleTasks.filter((t) => {
-    if (t.status === "done") return false;
-    const diff = getDaysDiffFromToday(t.due_date);
-    return diff !== null && diff <= 3;
-  }).length;
+  const d3AlertTasks = visibleTasks
+    .filter((t) => {
+      if (t.status === "done") return false;
+      const diff = getDaysDiffFromToday(t.due_date);
+      return diff !== null && diff <= 3;
+    })
+    .sort((a, b) => {
+      const diffA = getDaysDiffFromToday(a.due_date) ?? 999;
+      const diffB = getDaysDiffFromToday(b.due_date) ?? 999;
+      return diffA - diffB;
+    });
+  const d3AlertCount = d3AlertTasks.length;
 
   // Note: Real-time Google Calendar sync is handled strictly by the single PostgreSQL trigger `tr_tasks_realtime_gcal_sync` on `public.tasks` so there are never duplicate concurrent sync calls!
 
@@ -467,7 +494,7 @@ export default function HomePage() {
                 { id: "list", label: "ตารางงานทั้งหมด (List)", icon: "format_list_bulleted" },
                 { id: "gantt", label: "แผนผังเวลา (Gantt)", icon: "timeline" },
                 { id: "calendar", label: "ปฏิทินงานรายเดือน", icon: "calendar_month" },
-                { id: "presets", label: "แม่แบบงานซ้ำ & แจ้งเตือน", icon: "smart_toy" },
+                { id: "presets", label: "คลังแม่แบบ & Checklist", icon: "smart_toy" },
               ].map((item) => {
                 const isActive = activeView === item.id;
                 return (
@@ -573,20 +600,127 @@ export default function HomePage() {
               <span className="text-sm font-bold">+ งานใหม่</span>
             </button>
 
-            {/* D-3 Notification Bell */}
-            <button
-              onClick={() => setActiveView("presets")}
-              title="ดูระบบแจ้งเตือนงานใกล้ครบกำหนด (D-3)"
-              className="relative p-2 rounded-full bg-white text-slate-700 hover:bg-slate-100 border border-slate-200"
-              type="button"
-            >
-              <span className="material-symbols-outlined text-xl">notifications</span>
-              {d3AlertCount > 0 && (
-                <span className="absolute -top-1 -right-1 px-1.5 py-0.5 rounded-full bg-red-600 text-white text-[11px] font-extrabold">
-                  {d3AlertCount}
-                </span>
+            {/* D-3 Notification Bell + Dropdown */}
+            <div className="relative" ref={notifRef}>
+              <button
+                onClick={() => setNotifOpen((prev) => !prev)}
+                title="ดูรายการงานเลยกำหนดและใกล้ครบใน 3 วัน"
+                className={`relative p-2 rounded-full border transition-colors ${
+                  notifOpen
+                    ? "bg-blue-50 text-primary border-blue-300"
+                    : "bg-white text-slate-700 hover:bg-slate-100 border-slate-200"
+                }`}
+                type="button"
+              >
+                <span className="material-symbols-outlined text-xl">notifications</span>
+                {d3AlertCount > 0 && (
+                  <span className="absolute -top-1 -right-1 px-1.5 py-0.5 rounded-full bg-red-600 text-white text-[11px] font-extrabold">
+                    {d3AlertCount}
+                  </span>
+                )}
+              </button>
+
+              {notifOpen && (
+                <div className="absolute right-0 mt-2 w-80 sm:w-96 bg-white rounded-3xl shadow-2xl border border-slate-200 overflow-hidden z-50">
+                  <div className="px-4 py-3 bg-slate-50 border-b border-slate-100 flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="material-symbols-outlined text-red-600 text-xl">
+                        notifications_active
+                      </span>
+                      <span className="text-sm font-extrabold text-slate-900">
+                        งานใกล้ครบกำหนด / เลยกำหนด ({d3AlertCount})
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setNotifOpen(false)}
+                      className="w-7 h-7 rounded-full hover:bg-slate-200 flex items-center justify-center text-slate-500 text-xs font-bold"
+                    >
+                      ✕
+                    </button>
+                  </div>
+
+                  <div className="max-h-80 overflow-y-auto divide-y divide-slate-100">
+                    {d3AlertTasks.length === 0 ? (
+                      <div className="p-6 text-center text-slate-500">
+                        <div className="text-2xl mb-1">✅</div>
+                        <div className="text-sm font-bold text-slate-700">
+                          ไม่มีงานเลยกำหนดหรือใกล้ครบใน 3 วัน
+                        </div>
+                      </div>
+                    ) : (
+                      d3AlertTasks.map((t) => {
+                        const diff = getDaysDiffFromToday(t.due_date);
+                        const isBlinkRed = diff !== null && diff <= 1;
+                        return (
+                          <button
+                            key={t.id}
+                            type="button"
+                            onClick={() => {
+                              setSelectedTask(t);
+                              setNotifOpen(false);
+                            }}
+                            className="w-full text-left px-4 py-3 hover:bg-blue-50/60 transition-colors flex flex-col gap-1.5"
+                          >
+                            <div className="flex items-center justify-between gap-2">
+                              <span
+                                className={`px-2.5 py-0.5 rounded-lg text-xs font-extrabold ${
+                                  isBlinkRed
+                                    ? "bg-red-600 text-white"
+                                    : "bg-amber-400 text-slate-950"
+                                }`}
+                              >
+                                {diff === null
+                                  ? "ใกล้ครบกำหนด"
+                                  : diff < 0
+                                  ? `🚨 เลยกำหนด ${Math.abs(diff)} วัน!`
+                                  : diff === 0
+                                  ? "🚨 ครบกำหนดวันนี้!"
+                                  : diff === 1
+                                  ? "🚨 ครบพรุ่งนี้ (เหลือ 1 วัน)!"
+                                  : `⏰ เหลืออีก ${diff} วัน`}
+                              </span>
+                              <span className="text-xs font-semibold text-slate-500 whitespace-nowrap">
+                                {formatThaiDate(t.due_date, useBuddhistEra)}
+                              </span>
+                            </div>
+
+                            <div className="text-sm font-extrabold text-slate-900 line-clamp-1">
+                              {t.title}
+                            </div>
+
+                            {t.category && (
+                              <span
+                                className="self-start px-2 py-0.5 rounded-md text-[11px] font-bold"
+                                style={{
+                                  backgroundColor: `${t.category.color}18`,
+                                  color: t.category.color,
+                                }}
+                              >
+                                {t.category.name}
+                              </span>
+                            )}
+                          </button>
+                        );
+                      })
+                    )}
+                  </div>
+
+                  <div className="px-4 py-2.5 bg-slate-50 border-t border-slate-100 flex justify-end">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setActiveView("kanban");
+                        setNotifOpen(false);
+                      }}
+                      className="text-xs font-extrabold text-primary hover:underline"
+                    >
+                      เปิดกระดานงาน (Kanban) →
+                    </button>
+                  </div>
+                </div>
               )}
-            </button>
+            </div>
           </div>
         </header>
 
