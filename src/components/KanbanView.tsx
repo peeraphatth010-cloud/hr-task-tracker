@@ -176,6 +176,46 @@ function launchCelebrationFireworks() {
   requestAnimationFrame(animate);
 }
 
+const THAI_MONTHS_SHORT = [
+  "ม.ค.",
+  "ก.พ.",
+  "มี.ค.",
+  "เม.ย.",
+  "พ.ค.",
+  "มิ.ย.",
+  "ก.ค.",
+  "ส.ค.",
+  "ก.ย.",
+  "ต.ค.",
+  "พ.ย.",
+  "ธ.ค.",
+];
+
+function formatMonthRangeLabel(ym: string, span: 1 | 2, useBuddhistEra: boolean): string {
+  const [y, m] = ym.split("-").map(Number);
+  if (!y || !m) return ym;
+  const startLabel = `${THAI_MONTHS_SHORT[m - 1]} ${useBuddhistEra ? y + 543 : y}`;
+  if (span === 1) return startLabel;
+  const nextDate = new Date(y, m, 1); // m is 1-indexed, so new Date(y, m, 1) is next month
+  const ny = nextDate.getFullYear();
+  const nm = nextDate.getMonth() + 1;
+  const endLabel = `${THAI_MONTHS_SHORT[nm - 1]} ${useBuddhistEra ? ny + 543 : ny}`;
+  if (y === ny) {
+    return `${THAI_MONTHS_SHORT[m - 1]}–${endLabel}`;
+  }
+  return `${startLabel} – ${endLabel}`;
+}
+
+function getAllowedMonths(ym: string, span: 1 | 2): string[] {
+  const [y, m] = ym.split("-").map(Number);
+  if (!y || !m) return [];
+  const first = `${y}-${String(m).padStart(2, "0")}`;
+  if (span === 1) return [first];
+  const nextDate = new Date(y, m, 1);
+  const second = `${nextDate.getFullYear()}-${String(nextDate.getMonth() + 1).padStart(2, "0")}`;
+  return [first, second];
+}
+
 export default function KanbanView({
   tasks,
   categories,
@@ -189,32 +229,50 @@ export default function KanbanView({
   onSelectTask,
   onCreateTaskInColumn,
 }: KanbanViewProps) {
+  const now = new Date();
+  const currentMonthStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+
   const [internalCatId, setInternalCatId] = useState<string>("all");
   const selectedCatId = selectedCategoryId !== undefined ? selectedCategoryId : internalCatId;
   const setSelectedCatId = (catId: string) => {
     setInternalCatId(catId);
     if (onSelectCategory) onSelectCategory(catId);
   };
+  const [monthMode, setMonthMode] = useState<"all" | "custom">("all");
+  const [selectedMonth, setSelectedMonth] = useState<string>(currentMonthStr);
+  const [monthSpan, setMonthSpan] = useState<1 | 2>(1);
   const [priorityFilter, setPriorityFilter] = useState<string>("all");
   const [hideDoneTasks, setHideDoneTasks] = useState<boolean>(false);
   const [draggedTaskId, setDraggedTaskId] = useState<string | null>(null);
   const [dragOverCol, setDragOverCol] = useState<TaskStatus | null>(null);
   const [celebratingTaskTitle, setCelebratingTaskTitle] = useState<string | null>(null);
 
-  const filteredTasks = tasks.filter((t) => {
+  const allowedMonths = monthMode === "custom" ? getAllowedMonths(selectedMonth, monthSpan) : [];
+
+  const monthFilteredTasks = tasks.filter((t) => {
+    if (monthMode === "all") return true;
+    const dueYm = t.due_date ? t.due_date.slice(0, 7) : null;
+    const startYm = t.start_date ? t.start_date.slice(0, 7) : null;
+    return (
+      (dueYm !== null && allowedMonths.includes(dueYm)) ||
+      (startYm !== null && allowedMonths.includes(startYm))
+    );
+  });
+
+  const filteredTasks = monthFilteredTasks.filter((t) => {
     if (selectedCatId !== "all" && t.category_id !== selectedCatId) return false;
     if (priorityFilter === "urgent_high" && t.priority !== "urgent" && t.priority !== "high")
       return false;
     return true;
   });
 
-  const overdueCount = tasks.filter((t) => {
+  const overdueCount = monthFilteredTasks.filter((t) => {
     if (t.status === "done") return false;
     const diff = getDaysDiffFromToday(t.due_date);
     return diff !== null && diff < 0;
   }).length;
 
-  const d3Count = tasks.filter((t) => {
+  const d3Count = monthFilteredTasks.filter((t) => {
     if (t.status === "done") return false;
     const diff = getDaysDiffFromToday(t.due_date);
     return diff !== null && diff >= 0 && diff <= 3;
@@ -295,89 +353,201 @@ export default function KanbanView({
       </div>
 
       {/* Clear Filter Bar */}
-      <div className="bg-white rounded-3xl p-4 shadow-sm border border-slate-200 flex items-center justify-between gap-4 flex-wrap">
-        {/* Category Pills — Count ONLY unfinished tasks (status !== "done") */}
-        <div className="flex items-center gap-2 flex-wrap">
-          <button
-            onClick={() => setSelectedCatId("all")}
-            className={`px-4 py-2.5 rounded-2xl text-sm font-bold transition-all ${
-              selectedCatId === "all"
-                ? "bg-primary-container text-white shadow-sm"
-                : "bg-slate-100 text-slate-700 hover:bg-slate-200"
-            }`}
-          >
-            ทุกหมวดหมู่ ({tasks.filter((t) => t.status !== "done").length})
-          </button>
+      <div className="bg-white rounded-3xl p-4 shadow-sm border border-slate-200 flex flex-col gap-3.5">
+        {/* Row 1: Month Filter Bar (All / 1 Month / 2 Months / Custom Month Picker) */}
+        <div className="flex items-center justify-between gap-3 flex-wrap pb-3 border-b border-slate-100">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-sm font-extrabold text-slate-700 flex items-center gap-1.5 mr-1">
+              <span className="material-symbols-outlined text-lg text-primary">calendar_month</span>
+              ช่วงเดือน:
+            </span>
 
-          {categories.map((cat) => {
-            const count = tasks.filter(
-              (t) => t.category_id === cat.id && t.status !== "done"
-            ).length;
-            const active = selectedCatId === cat.id;
-            return (
-              <button
-                key={cat.id}
-                onClick={() => setSelectedCatId(cat.id)}
-                className={`px-4 py-2.5 rounded-2xl text-sm font-bold transition-all flex items-center gap-2 ${
-                  active
-                    ? "bg-primary-container text-white shadow-sm"
-                    : "bg-slate-100 text-slate-800 hover:bg-slate-200"
-                }`}
-              >
-                <span
-                  className="w-3 h-3 rounded-full"
-                  style={{ backgroundColor: active ? "#ffffff" : cat.color }}
-                ></span>
-                <span>{cat.name}</span>
-                <span className="opacity-80">({count})</span>
-              </button>
-            );
-          })}
+            <button
+              type="button"
+              onClick={() => setMonthMode("all")}
+              className={`px-3.5 py-2 rounded-2xl text-sm font-bold transition-all ${
+                monthMode === "all"
+                  ? "bg-primary-container text-white shadow-sm"
+                  : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+              }`}
+            >
+              ทั้งหมด ({tasks.length})
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setSelectedMonth(currentMonthStr);
+                setMonthSpan(1);
+                setMonthMode("custom");
+              }}
+              className={`px-3.5 py-2 rounded-2xl text-sm font-bold transition-all ${
+                monthMode === "custom" && selectedMonth === currentMonthStr && monthSpan === 1
+                  ? "bg-primary-container text-white shadow-sm"
+                  : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+              }`}
+            >
+              เดือนนี้ ({formatMonthRangeLabel(currentMonthStr, 1, useBuddhistEra)})
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setSelectedMonth(currentMonthStr);
+                setMonthSpan(2);
+                setMonthMode("custom");
+              }}
+              className={`px-3.5 py-2 rounded-2xl text-sm font-bold transition-all ${
+                monthMode === "custom" && selectedMonth === currentMonthStr && monthSpan === 2
+                  ? "bg-primary-container text-white shadow-sm"
+                  : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+              }`}
+            >
+              วางแผน 2 เดือน ({formatMonthRangeLabel(currentMonthStr, 2, useBuddhistEra)})
+            </button>
+          </div>
+
+          {/* Custom Month Picker + 1-Month / 2-Month Toggle */}
+          <div className="flex items-center gap-2 flex-wrap">
+            <div className="flex items-center gap-2 bg-slate-100 rounded-2xl px-3 py-1.5 border border-slate-200">
+              <span className="text-xs font-bold text-slate-600 whitespace-nowrap">เลือกเดือน:</span>
+              <input
+                type="month"
+                value={selectedMonth}
+                onChange={(e) => {
+                  if (e.target.value) {
+                    setSelectedMonth(e.target.value);
+                    setMonthMode("custom");
+                  }
+                }}
+                className="bg-white px-2.5 py-1 rounded-xl text-sm font-bold text-slate-900 border border-slate-200 focus:outline-none focus:ring-2 focus:ring-primary"
+              />
+              <div className="inline-flex rounded-xl bg-slate-200/80 p-0.5">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMonthSpan(1);
+                    setMonthMode("custom");
+                  }}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-extrabold transition-all ${
+                    monthMode === "custom" && monthSpan === 1
+                      ? "bg-white text-primary shadow-sm"
+                      : "text-slate-600 hover:text-slate-900"
+                  }`}
+                >
+                  1 เดือน
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMonthSpan(2);
+                    setMonthMode("custom");
+                  }}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-extrabold transition-all ${
+                    monthMode === "custom" && monthSpan === 2
+                      ? "bg-white text-primary shadow-sm"
+                      : "text-slate-600 hover:text-slate-900"
+                  }`}
+                >
+                  2 เดือน
+                </button>
+              </div>
+            </div>
+
+            {monthMode === "custom" && (
+              <span className="px-3 py-1.5 rounded-xl bg-blue-50 text-primary text-xs font-extrabold border border-blue-200">
+                แสดง: {formatMonthRangeLabel(selectedMonth, monthSpan, useBuddhistEra)} (
+                {monthFilteredTasks.length} งาน)
+              </span>
+            )}
+          </div>
         </div>
 
-        {/* Quick Priority Filter & Hide/Clear Done Tasks */}
-        <div className="flex items-center gap-2.5 flex-wrap">
-          <button
-            onClick={() => setHideDoneTasks(!hideDoneTasks)}
-            className={`px-4 py-2.5 rounded-2xl text-sm font-bold transition-all border ${
-              hideDoneTasks
-                ? "bg-slate-800 text-white border-slate-800 shadow-sm"
-                : "bg-slate-100 text-slate-700 border-slate-200 hover:bg-slate-200"
-            }`}
-          >
-            {hideDoneTasks ? "👁️ แสดงงานที่เสร็จแล้ว" : "ซ่อนงานที่เสร็จแล้ว"}
-          </button>
-
-          {tasks.some((t) => t.status === "done") && onDeleteAllDone && (
+        {/* Row 2: Category Pills & Quick Action Filters */}
+        <div className="flex items-center justify-between gap-4 flex-wrap">
+          {/* Category Pills — Count ONLY unfinished tasks in the active month filter */}
+          <div className="flex items-center gap-2 flex-wrap">
             <button
-              onClick={() => {
-                if (
-                  window.confirm(
-                    "ต้องการลบงานที่เสร็จสมบูรณ์แล้วทั้งหมดออกจากกระดานใช่หรือไม่?"
-                  )
-                ) {
-                  onDeleteAllDone();
-                }
-              }}
-              className="px-4 py-2.5 rounded-2xl text-sm font-bold transition-all border bg-white text-slate-700 border-slate-300 hover:bg-red-50 hover:text-red-700 hover:border-red-300 flex items-center gap-1"
+              onClick={() => setSelectedCatId("all")}
+              className={`px-4 py-2.5 rounded-2xl text-sm font-bold transition-all ${
+                selectedCatId === "all"
+                  ? "bg-primary-container text-white shadow-sm"
+                  : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+              }`}
             >
-              <span className="material-symbols-outlined text-base">delete_sweep</span>
-              <span>ล้างงานที่เสร็จแล้ว</span>
+              ทุกหมวดหมู่ ({monthFilteredTasks.filter((t) => t.status !== "done").length})
             </button>
-          )}
 
-          <button
-            onClick={() =>
-              setPriorityFilter(priorityFilter === "urgent_high" ? "all" : "urgent_high")
-            }
-            className={`px-4 py-2.5 rounded-2xl text-sm font-bold transition-all border ${
-              priorityFilter === "urgent_high"
-                ? "bg-red-600 text-white border-red-600 shadow-sm"
-                : "bg-red-50 text-red-700 border-red-200 hover:bg-red-100"
-            }`}
-          >
-            🔥 แสดงเฉพาะงานด่วน / สำคัญสูง
-          </button>
+            {categories.map((cat) => {
+              const count = monthFilteredTasks.filter(
+                (t) => t.category_id === cat.id && t.status !== "done"
+              ).length;
+              const active = selectedCatId === cat.id;
+              return (
+                <button
+                  key={cat.id}
+                  onClick={() => setSelectedCatId(cat.id)}
+                  className={`px-4 py-2.5 rounded-2xl text-sm font-bold transition-all flex items-center gap-2 ${
+                    active
+                      ? "bg-primary-container text-white shadow-sm"
+                      : "bg-slate-100 text-slate-800 hover:bg-slate-200"
+                  }`}
+                >
+                  <span
+                    className="w-3 h-3 rounded-full"
+                    style={{ backgroundColor: active ? "#ffffff" : cat.color }}
+                  ></span>
+                  <span>{cat.name}</span>
+                  <span className="opacity-80">({count})</span>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Quick Priority Filter & Hide/Clear Done Tasks */}
+          <div className="flex items-center gap-2.5 flex-wrap">
+            <button
+              onClick={() => setHideDoneTasks(!hideDoneTasks)}
+              className={`px-4 py-2.5 rounded-2xl text-sm font-bold transition-all border ${
+                hideDoneTasks
+                  ? "bg-slate-800 text-white border-slate-800 shadow-sm"
+                  : "bg-slate-100 text-slate-700 border-slate-200 hover:bg-slate-200"
+              }`}
+            >
+              {hideDoneTasks ? "👁️ แสดงงานที่เสร็จแล้ว" : "ซ่อนงานที่เสร็จแล้ว"}
+            </button>
+
+            {tasks.some((t) => t.status === "done") && onDeleteAllDone && (
+              <button
+                onClick={() => {
+                  if (
+                    window.confirm(
+                      "ต้องการลบงานที่เสร็จสมบูรณ์แล้วทั้งหมดออกจากกระดานใช่หรือไม่?"
+                    )
+                  ) {
+                    onDeleteAllDone();
+                  }
+                }}
+                className="px-4 py-2.5 rounded-2xl text-sm font-bold transition-all border bg-white text-slate-700 border-slate-300 hover:bg-red-50 hover:text-red-700 hover:border-red-300 flex items-center gap-1"
+              >
+                <span className="material-symbols-outlined text-base">delete_sweep</span>
+                <span>ล้างงานที่เสร็จแล้ว</span>
+              </button>
+            )}
+
+            <button
+              onClick={() =>
+                setPriorityFilter(priorityFilter === "urgent_high" ? "all" : "urgent_high")
+              }
+              className={`px-4 py-2.5 rounded-2xl text-sm font-bold transition-all border ${
+                priorityFilter === "urgent_high"
+                  ? "bg-red-600 text-white border-red-600 shadow-sm"
+                  : "bg-red-50 text-red-700 border-red-200 hover:bg-red-100"
+              }`}
+            >
+              🔥 แสดงเฉพาะงานด่วน / สำคัญสูง
+            </button>
+          </div>
         </div>
       </div>
 
