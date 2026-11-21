@@ -32,6 +32,13 @@ export interface ChecklistTemplate {
   updated_at?: string;
 }
 
+export interface AISettings {
+  ai_provider: "gemini" | "openai";
+  ai_model: string;
+  ai_api_key: string;
+  ai_role_prompt: string;
+}
+
 export interface Preset {
   id: string;
   user_id?: string | null;
@@ -99,6 +106,7 @@ export interface Task {
   gcal_synced_at?: string | null;
   title: string;
   description: string | null;
+  ai_assignment?: string | null;
   status: TaskStatus;
   priority: TaskPriority;
   category_id: string | null;

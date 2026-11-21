@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { Category, ChecklistTemplate, Task, TaskPriority, TaskStatus } from "@/lib/types";
+import { AISettings, Category, ChecklistTemplate, Task, TaskPriority, TaskStatus } from "@/lib/types";
 import { supabase } from "@/lib/supabase";
 
 interface TaskDrawerProps {
@@ -9,6 +9,7 @@ interface TaskDrawerProps {
   categories: Category[];
   allTasks: Task[];
   checklistTemplates: ChecklistTemplate[];
+  aiSettings: AISettings;
   isViewer: boolean;
   activeTimerTaskId: string | null;
   timerStartTime: number | null;
@@ -19,6 +20,7 @@ interface TaskDrawerProps {
   onCreateChecklistTemplate: (name: string, items: string[]) => Promise<void>;
   onUpdateChecklistTemplate: (id: string, name: string, items: string[]) => Promise<void>;
   onDeleteChecklistTemplate: (id: string) => Promise<void>;
+  onSaveAISettings: (settings: AISettings) => Promise<void>;
   onRefresh: () => Promise<void>;
   onSelectTask: (task: Task) => void;
   onStartTimer: (taskId: string) => void;
@@ -30,6 +32,7 @@ export default function TaskDrawer({
   categories,
   allTasks,
   checklistTemplates,
+  aiSettings,
   isViewer,
   activeTimerTaskId,
   timerStartTime,
@@ -40,6 +43,7 @@ export default function TaskDrawer({
   onCreateChecklistTemplate,
   onUpdateChecklistTemplate,
   onDeleteChecklistTemplate,
+  onSaveAISettings,
   onRefresh,
   onSelectTask,
   onStartTimer,
@@ -47,6 +51,7 @@ export default function TaskDrawer({
 }: TaskDrawerProps) {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
+  const [aiAssignment, setAiAssignment] = useState("");
   const [status, setStatus] = useState<TaskStatus>("todo");
   const [priority, setPriority] = useState<TaskPriority>("medium");
   const [categoryId, setCategoryId] = useState<string>("");
@@ -73,10 +78,33 @@ export default function TaskDrawer({
   const [tplItemsText, setTplItemsText] = useState<string>("");
   const [savingTpl, setSavingTpl] = useState<boolean>(false);
 
+  // AI Assignment & Settings state
+  const [aiPromptInput, setAiPromptInput] = useState<string>("");
+  const [draftingAI, setDraftingAI] = useState<boolean>(false);
+  const [aiError, setAiError] = useState<string | null>(null);
+  const [showAISettings, setShowAISettings] = useState<boolean>(false);
+  const [showApiKey, setShowApiKey] = useState<boolean>(false);
+  const [aiProvider, setAiProvider] = useState<"gemini" | "openai">(aiSettings.ai_provider);
+  const [aiModel, setAiModel] = useState<string>(aiSettings.ai_model);
+  const [aiApiKey, setAiApiKey] = useState<string>(aiSettings.ai_api_key);
+  const [aiRolePrompt, setAiRolePrompt] = useState<string>(aiSettings.ai_role_prompt);
+  const [savingAISettings, setSavingAISettings] = useState<boolean>(false);
+  const [savedAISettingsMsg, setSavedAISettingsMsg] = useState<string | null>(null);
+
+  useEffect(() => {
+    setAiProvider(aiSettings.ai_provider);
+    setAiModel(aiSettings.ai_model);
+    setAiApiKey(aiSettings.ai_api_key);
+    setAiRolePrompt(aiSettings.ai_role_prompt);
+  }, [aiSettings]);
+
   useEffect(() => {
     if (task) {
       setTitle(task.title || "");
       setDescription(task.description || "");
+      setAiAssignment(task.ai_assignment || "");
+      setAiPromptInput("");
+      setAiError(null);
       setStatus(task.status || "todo");
       setPriority(task.priority || "medium");
       setCategoryId(task.category_id || categories[0]?.id || "");
@@ -132,6 +160,7 @@ export default function TaskDrawer({
       id: task.id || undefined,
       title: title.trim(),
       description: description.trim(),
+      ai_assignment: aiAssignment.trim() || null,
       status,
       priority,
       category_id: categoryId || null,
@@ -224,6 +253,66 @@ export default function TaskDrawer({
     setEditingTplId(null);
     setTplName(`ชุดเช็กลิสต์: ${task.title}`);
     setTplItemsText(checklist.map((c) => `- ${c.text}`).join("\n"));
+  };
+
+  const handleSaveAISettingsClick = async () => {
+    setSavingAISettings(true);
+    setSavedAISettingsMsg(null);
+    try {
+      await onSaveAISettings({
+        ai_provider: aiProvider,
+        ai_model:
+          aiModel.trim() || (aiProvider === "openai" ? "gpt-4o-mini" : "gemini-2.5-flash"),
+        ai_api_key: aiApiKey.trim(),
+        ai_role_prompt: aiRolePrompt.trim(),
+      });
+      setSavedAISettingsMsg("✅ บันทึก Role AI และ API Key ลง Supabase เรียบร้อยแล้ว");
+      setTimeout(() => setSavedAISettingsMsg(null), 3000);
+    } finally {
+      setSavingAISettings(false);
+    }
+  };
+
+  const handleDraftWithAI = async () => {
+    if (!aiPromptInput.trim() || draftingAI) return;
+    setDraftingAI(true);
+    setAiError(null);
+    try {
+      const catName = categories.find((c) => c.id === categoryId)?.name;
+      const res = await fetch("/api/ai-draft", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          prompt: aiPromptInput.trim(),
+          rolePrompt: aiRolePrompt,
+          provider: aiProvider,
+          model: aiModel,
+          apiKey: aiApiKey,
+          taskContext: {
+            title: title.trim(),
+            description: description.trim(),
+            startDate,
+            dueDate,
+            categoryName: catName,
+          },
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setAiError(data?.error || "ไม่สามารถร่างข้อความได้ กรุณาตรวจสอบ API Key");
+        if (res.status === 400 && String(data?.error || "").includes("API Key")) {
+          setShowAISettings(true);
+        }
+        return;
+      }
+      if (data?.text) {
+        setAiAssignment(data.text);
+      }
+    } catch (err: any) {
+      setAiError(err?.message || "เกิดข้อผิดพลาดในการเชื่อมต่อระบบ AI");
+    } finally {
+      setDraftingAI(false);
+    }
   };
 
   // Subtask creation (FR-2.4)
@@ -403,6 +492,184 @@ export default function TaskDrawer({
                 onChange={(e) => setDescription(e.target.value)}
                 placeholder="รายละเอียดขั้นตอน เอกสารที่เกี่ยวข้อง หรือหมายเหตุ..."
                 className="w-full px-4 py-2.5 rounded-2xl bg-surface-container-low text-on-surface font-body-md focus:outline-none focus:ring-2 focus:ring-primary"
+              />
+            </div>
+
+            {/* AI Assignment Section (Synced to Google Calendar + Built-in AI Drafter & Role Settings) */}
+            <div className="rounded-3xl p-4 bg-indigo-50/70 border border-indigo-200/80 space-y-3">
+              <div className="flex items-center justify-between gap-2 flex-wrap">
+                <label className="font-label-sm font-extrabold text-indigo-900 flex items-center gap-1.5">
+                  <span className="material-symbols-outlined text-lg text-indigo-600">
+                    smart_toy
+                  </span>
+                  <span>มอบหมายงานให้ AI ทำ</span>
+                  <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-white text-indigo-700 border border-indigo-200">
+                    แสดงใน Calendar
+                  </span>
+                </label>
+
+                {!isViewer && (
+                  <button
+                    type="button"
+                    onClick={() => setShowAISettings((prev) => !prev)}
+                    className={`px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1 transition-all border ${
+                      showAISettings
+                        ? "bg-indigo-600 text-white border-indigo-600"
+                        : "bg-white text-indigo-700 border-indigo-200 hover:bg-indigo-100"
+                    }`}
+                  >
+                    <span className="material-symbols-outlined text-sm">tune</span>
+                    <span>
+                      {showAISettings ? "ซ่อนตั้งค่า AI" : "ตั้งค่า Role AI & API Key"}
+                    </span>
+                  </button>
+                )}
+              </div>
+
+              {/* Collapsible AI Role Set & API Key Settings */}
+              {!isViewer && showAISettings && (
+                <div className="p-3.5 rounded-2xl bg-white border border-indigo-200 shadow-sm space-y-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                    <div>
+                      <label className="text-xs font-bold text-slate-700 block mb-1">
+                        ผู้ให้บริการ AI (Provider)
+                      </label>
+                      <select
+                        value={aiProvider}
+                        onChange={(e) => {
+                          const p = e.target.value as "gemini" | "openai";
+                          setAiProvider(p);
+                          setAiModel(p === "openai" ? "gpt-4o-mini" : "gemini-2.5-flash");
+                        }}
+                        className="w-full px-3 py-2 rounded-xl bg-slate-100 text-xs font-bold text-slate-900"
+                      >
+                        <option value="gemini">Google Gemini (แนะนำ)</option>
+                        <option value="openai">OpenAI (ChatGPT)</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-xs font-bold text-slate-700 block mb-1">
+                        รุ่นโมเดล (Model)
+                      </label>
+                      <input
+                        type="text"
+                        value={aiModel}
+                        onChange={(e) => setAiModel(e.target.value)}
+                        placeholder="gemini-2.5-flash"
+                        className="w-full px-3 py-2 rounded-xl bg-slate-100 text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="text-xs font-bold text-slate-700">
+                        AI API Key ({aiProvider === "gemini" ? "Gemini API Key" : "OpenAI API Key"})
+                      </label>
+                      {aiProvider === "gemini" && (
+                        <a
+                          href="https://aistudio.google.com/apikey"
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-[11px] font-bold text-indigo-600 hover:underline"
+                        >
+                          รับ Gemini API Key →
+                        </a>
+                      )}
+                    </div>
+                    <div className="flex gap-1.5">
+                      <input
+                        type={showApiKey ? "text" : "password"}
+                        value={aiApiKey}
+                        onChange={(e) => setAiApiKey(e.target.value)}
+                        placeholder={
+                          aiProvider === "gemini"
+                            ? "วาง Gemini API Key (AIza...) ที่นี่"
+                            : "วาง OpenAI API Key (sk-...) ที่นี่"
+                        }
+                        className="flex-1 px-3 py-2 rounded-xl bg-slate-100 text-xs font-mono text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowApiKey((v) => !v)}
+                        className="px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-xs font-bold text-slate-700"
+                      >
+                        {showApiKey ? "ซ่อน" : "ดู"}
+                      </button>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="text-xs font-bold text-slate-700 block mb-1">
+                      Role AI Set (กำหนดบทบาทและสไตล์การตอบของ AI)
+                    </label>
+                    <textarea
+                      rows={2}
+                      value={aiRolePrompt}
+                      onChange={(e) => setAiRolePrompt(e.target.value)}
+                      placeholder="เช่น นายคือผู้ชาย เป็นผู้ช่วย HR มืออาชีพ พูดครับผม สุภาพ กระชับ..."
+                      className="w-full px-3 py-2 rounded-xl bg-slate-100 text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                    />
+                  </div>
+
+                  <div className="flex items-center justify-between gap-2 flex-wrap">
+                    <span className="text-[11px] text-emerald-700 font-bold">
+                      {savedAISettingsMsg || ""}
+                    </span>
+                    <button
+                      type="button"
+                      disabled={savingAISettings}
+                      onClick={handleSaveAISettingsClick}
+                      className="px-4 py-1.5 rounded-full bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-extrabold shadow-sm disabled:opacity-50"
+                    >
+                      {savingAISettings ? "กำลังบันทึก..." : "💾 บันทึกการตั้งค่า AI"}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Prompt Bar to ask AI to draft content */}
+              {!isViewer && (
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={aiPromptInput}
+                    onChange={(e) => setAiPromptInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        handleDraftWithAI();
+                      }
+                    }}
+                    placeholder="สั่งให้ AI ร่างให้ เช่น ร่างเมลแจ้งประชุมวันที่ 30 พฤศจิกายนให้หน่อย..."
+                    className="flex-1 px-3.5 py-2 rounded-full bg-white text-sm text-slate-900 border border-indigo-200 focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                  />
+                  <button
+                    type="button"
+                    disabled={draftingAI || !aiPromptInput.trim()}
+                    onClick={handleDraftWithAI}
+                    className="px-4 py-2 rounded-full bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-extrabold shadow-sm flex items-center gap-1 shrink-0 disabled:opacity-50"
+                  >
+                    <span className="material-symbols-outlined text-base">auto_awesome</span>
+                    <span>{draftingAI ? "กำลังร่าง..." : "ให้ AI ร่างให้"}</span>
+                  </button>
+                </div>
+              )}
+
+              {aiError && (
+                <div className="px-3 py-2 rounded-xl bg-red-50 border border-red-200 text-xs font-bold text-red-700">
+                  ⚠️ {aiError}
+                </div>
+              )}
+
+              {/* Main Textarea for AI Assignment (synced to Google Calendar) */}
+              <textarea
+                rows={4}
+                disabled={isViewer}
+                value={aiAssignment}
+                onChange={(e) => setAiAssignment(e.target.value)}
+                placeholder="ข้อความ/คำสั่งที่มอบหมายให้ AI ทำ (พิมพ์เอง หรือกด 'ให้ AI ร่างให้' ด้านบน) — ข้อความนี้จะถูกส่งไปแสดงใน Google Calendar ด้วย..."
+                className="w-full px-4 py-2.5 rounded-2xl bg-white text-on-surface font-body-md border border-indigo-200/80 focus:outline-none focus:ring-2 focus:ring-indigo-400"
               />
             </div>
 

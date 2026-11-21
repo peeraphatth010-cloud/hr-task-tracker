@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { supabase } from "@/lib/supabase";
 import {
+  AISettings,
   Category,
   ChecklistTemplate,
   Preset,
@@ -29,6 +30,13 @@ export default function HomePage() {
   const [presets, setPresets] = useState<Preset[]>([]);
   const [checklistTemplates, setChecklistTemplates] = useState<ChecklistTemplate[]>([]);
   const [dependencies, setDependencies] = useState<TaskDependency[]>([]);
+  const [aiSettings, setAiSettings] = useState<AISettings>({
+    ai_provider: "gemini",
+    ai_model: "gemini-2.5-flash",
+    ai_api_key: "",
+    ai_role_prompt:
+      "คุณคือผู้ช่วย HR มืออาชีพ พูดจาสุภาพ กระชับ ชัดเจน และพร้อมร่างข้อความหรือคำสั่งงานให้ใช้งานได้ทันที",
+  });
   // initialLoading is ONLY true on the very first page open, so child views never unmount or reset filters!
   const [initialLoading, setInitialLoading] = useState<boolean>(true);
 
@@ -66,7 +74,7 @@ export default function HomePage() {
   // Background silent refresh (never sets initialLoading back to true!)
   const fetchAllData = useCallback(async () => {
     try {
-      const [catsRes, presetsRes, tasksRes, depsRes, chkTplRes] = await Promise.all([
+      const [catsRes, presetsRes, tasksRes, depsRes, chkTplRes, settingsRes] = await Promise.all([
         supabase.from("categories").select("*").order("sort_order", { ascending: true }),
         supabase.from("presets").select("*").order("created_at", { ascending: true }),
         supabase
@@ -75,7 +83,23 @@ export default function HomePage() {
           .order("position", { ascending: true }),
         supabase.from("task_dependencies").select("*"),
         supabase.from("checklist_templates").select("*").order("created_at", { ascending: true }),
+        supabase
+          .from("integration_settings")
+          .select("ai_provider, ai_model, ai_api_key, ai_role_prompt")
+          .eq("id", "default")
+          .maybeSingle(),
       ]);
+
+      const savedSettings = settingsRes.data;
+      if (savedSettings) {
+        setAiSettings((prev) => ({
+          ai_provider:
+            savedSettings.ai_provider === "openai" ? "openai" : "gemini",
+          ai_model: savedSettings.ai_model || "gemini-2.5-flash",
+          ai_api_key: savedSettings.ai_api_key || "",
+          ai_role_prompt: savedSettings.ai_role_prompt || prev.ai_role_prompt,
+        }));
+      }
 
       const cats = (catsRes.data || []) as Category[];
       const catMap = new Map(cats.map((c) => [c.id, c]));
@@ -202,6 +226,7 @@ export default function HomePage() {
         .update({
           title: payload.title,
           description: payload.description,
+          ai_assignment: payload.ai_assignment ?? null,
           status: payload.status,
           priority: payload.priority,
           category_id: payload.category_id,
@@ -222,6 +247,7 @@ export default function HomePage() {
           code,
           title: payload.title,
           description: payload.description,
+          ai_assignment: payload.ai_assignment ?? null,
           status: payload.status || "todo",
           priority: payload.priority || "medium",
           category_id: payload.category_id || categories[0]?.id || null,
@@ -266,6 +292,7 @@ export default function HomePage() {
         preset_id: task.preset_id,
         title: `${task.title} (สำเนา)`,
         description: task.description,
+        ai_assignment: task.ai_assignment || null,
         status: "todo",
         priority: task.priority,
         category_id: task.category_id,
@@ -388,6 +415,18 @@ export default function HomePage() {
     await fetchAllData();
   };
 
+  const handleSaveAISettings = async (nextSettings: AISettings) => {
+    setAiSettings(nextSettings);
+    await supabase.from("integration_settings").upsert({
+      id: "default",
+      ai_provider: nextSettings.ai_provider,
+      ai_model: nextSettings.ai_model,
+      ai_api_key: nextSettings.ai_api_key,
+      ai_role_prompt: nextSettings.ai_role_prompt,
+      updated_at: new Date().toISOString(),
+    });
+  };
+
   const handleAddDependency = async (taskId: string, dependsOnId: string) => {
     await supabase
       .from("task_dependencies")
@@ -446,6 +485,7 @@ export default function HomePage() {
       preset_id: null,
       title: "",
       description: "",
+      ai_assignment: "",
       status: initialStatus,
       priority: "medium",
       category_id: categories[0]?.id || null,
@@ -831,6 +871,7 @@ export default function HomePage() {
         categories={categories}
         allTasks={tasks}
         checklistTemplates={checklistTemplates}
+        aiSettings={aiSettings}
         isViewer={false}
         activeTimerTaskId={activeTimerTaskId}
         timerStartTime={timerStartTime}
@@ -841,6 +882,7 @@ export default function HomePage() {
         onCreateChecklistTemplate={handleCreateChecklistTemplate}
         onUpdateChecklistTemplate={handleUpdateChecklistTemplate}
         onDeleteChecklistTemplate={handleDeleteChecklistTemplate}
+        onSaveAISettings={handleSaveAISettings}
         onRefresh={fetchAllData}
         onSelectTask={(t) => setSelectedTask(t)}
         onStartTimer={handleStartTimer}
