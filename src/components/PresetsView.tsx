@@ -1,18 +1,22 @@
 "use client";
 
 import React, { useState, useRef, useEffect } from "react";
-import { Category, Preset, RecurrenceType, Task, TaskPriority } from "@/lib/types";
+import { Category, ChecklistTemplate, Preset, RecurrenceType, Task, TaskPriority } from "@/lib/types";
 import { supabase } from "@/lib/supabase";
 
 interface PresetsViewProps {
   presets: Preset[];
   categories: Category[];
   tasks: Task[];
+  checklistTemplates: ChecklistTemplate[];
   isViewer: boolean;
   onLaunchPreset: (preset: Preset, dueDate: string) => Promise<void>;
   onCreatePreset: (newPreset: Partial<Preset>) => Promise<void>;
   onUpdatePreset: (presetId: string, updatedPreset: Partial<Preset>) => Promise<void>;
   onDeletePreset: (presetId: string) => Promise<void>;
+  onCreateChecklistTemplate: (name: string, items: string[]) => Promise<void>;
+  onUpdateChecklistTemplate: (id: string, name: string, items: string[]) => Promise<void>;
+  onDeleteChecklistTemplate: (id: string) => Promise<void>;
   onRefreshTasks: () => Promise<void>;
 }
 
@@ -132,11 +136,15 @@ export default function PresetsView({
   presets,
   categories,
   tasks,
+  checklistTemplates,
   isViewer,
   onLaunchPreset,
   onCreatePreset,
   onUpdatePreset,
   onDeletePreset,
+  onCreateChecklistTemplate,
+  onUpdateChecklistTemplate,
+  onDeleteChecklistTemplate,
   onRefreshTasks,
 }: PresetsViewProps) {
   const [selectedPresetId, setSelectedPresetId] = useState<string>(presets[0]?.id || "");
@@ -170,6 +178,12 @@ export default function PresetsView({
   const [newRecurrence, setNewRecurrence] = useState<RecurrenceType>("monthly");
   const [newRecurrenceDay, setNewRecurrenceDay] = useState<number>(15);
   const [newChecklistText, setNewChecklistText] = useState<string>("");
+
+  // Checklist Library Form state
+  const [editingChkId, setEditingChkId] = useState<string | null>(null);
+  const [chkName, setChkName] = useState<string>("");
+  const [chkItemsText, setChkItemsText] = useState<string>("");
+  const [savingChk, setSavingChk] = useState<boolean>(false);
 
   const formCardRef = useRef<HTMLDivElement>(null);
 
@@ -819,6 +833,154 @@ export default function PresetsView({
                   </span>
                 </button>
               </div>
+            </form>
+          </div>
+
+          {/* Card 2: Reusable Checklist Library Manager */}
+          <div className="bg-surface-container-lowest rounded-3xl p-space-lg shadow-[0_12px_32px_-8px_rgba(37,99,235,0.07)] border-2 border-white/80 space-y-4">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <span className="material-symbols-outlined text-primary text-2xl">
+                  checklist
+                </span>
+                <div>
+                  <h3 className="font-headline-sm text-headline-sm font-bold text-on-surface leading-tight">
+                    คลัง Checklist กลาง ({checklistTemplates.length} ชุด)
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    ใช้ดึงรายการย่อยเข้างานใดก็ได้ในหน้าต่างแก้ไขงาน
+                  </p>
+                </div>
+              </div>
+              {editingChkId && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEditingChkId(null);
+                    setChkName("");
+                    setChkItemsText("");
+                  }}
+                  className="px-3 py-1 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold"
+                >
+                  ยกเลิก
+                </button>
+              )}
+            </div>
+
+            {/* Existing Checklist Templates */}
+            <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
+              {checklistTemplates.map((tpl) => {
+                const tplItems = Array.isArray(tpl.items) ? tpl.items : [];
+                return (
+                  <div
+                    key={tpl.id}
+                    className={`p-3 rounded-2xl border transition-all ${
+                      editingChkId === tpl.id
+                        ? "bg-blue-50 border-primary-container"
+                        : "bg-surface-container-low/70 border-transparent"
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-2 mb-1.5">
+                      <span className="text-sm font-extrabold text-slate-900 leading-snug">
+                        {tpl.name}
+                      </span>
+                      <div className="flex items-center gap-1 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditingChkId(tpl.id);
+                            setChkName(tpl.name);
+                            setChkItemsText(tplItems.map((i) => `- ${i}`).join("\n"));
+                          }}
+                          className="px-2.5 py-0.5 rounded-full bg-white hover:bg-blue-100 text-slate-700 hover:text-primary text-xs font-bold border border-slate-200"
+                        >
+                          แก้ไข
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (window.confirm(`ต้องการลบชุด "${tpl.name}" ใช่หรือไม่?`)) {
+                              onDeleteChecklistTemplate(tpl.id);
+                            }
+                          }}
+                          className="px-2 py-0.5 rounded-full text-slate-400 hover:text-error hover:bg-red-50 text-xs font-bold"
+                          title="ลบชุดนี้"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    </div>
+                    <ul className="space-y-0.5">
+                      {tplItems.slice(0, 3).map((item, i) => (
+                        <li key={i} className="text-xs text-slate-600 truncate">
+                          • {item}
+                        </li>
+                      ))}
+                      {tplItems.length > 3 && (
+                        <li className="text-xs font-bold text-primary">
+                          + อีก {tplItems.length - 3} ข้อ
+                        </li>
+                      )}
+                    </ul>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Create / Edit Checklist Template Form */}
+            <form
+              onSubmit={async (e) => {
+                e.preventDefault();
+                const lines = chkItemsText
+                  .split("\n")
+                  .map((l) => l.replace(/^[-•*]\s*/, "").trim())
+                  .filter(Boolean);
+                if (!chkName.trim() || lines.length === 0) return;
+                setSavingChk(true);
+                try {
+                  if (editingChkId) {
+                    await onUpdateChecklistTemplate(editingChkId, chkName.trim(), lines);
+                  } else {
+                    await onCreateChecklistTemplate(chkName.trim(), lines);
+                  }
+                  setEditingChkId(null);
+                  setChkName("");
+                  setChkItemsText("");
+                } finally {
+                  setSavingChk(false);
+                }
+              }}
+              className="space-y-2.5 pt-3 border-t border-surface-container"
+            >
+              <input
+                type="text"
+                required
+                disabled={isViewer}
+                value={chkName}
+                onChange={(e) => setChkName(e.target.value)}
+                placeholder="ชื่อชุด Checklist ใหม่ เช่น สรรหาพนักงาน Sales..."
+                className="w-full px-4 py-2 rounded-2xl bg-surface-container-low text-on-surface text-sm font-bold focus:outline-none focus:ring-2 focus:ring-primary"
+              />
+              <textarea
+                rows={4}
+                required
+                disabled={isViewer}
+                value={chkItemsText}
+                onChange={(e) => setChkItemsText(e.target.value)}
+                placeholder={"รายการย่อย (บรรทัดละ 1 ข้อ)\n- โพสต์ประกาศงาน\n- คัดกรองเรซูเม่\n- นัดสัมภาษณ์"}
+                className="w-full px-4 py-2 rounded-2xl bg-surface-container-low text-on-surface text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+              />
+              <button
+                type="submit"
+                disabled={isViewer || savingChk}
+                className="w-full py-2.5 rounded-full bg-slate-900 hover:bg-primary-container text-white text-sm font-bold shadow-sm transition-all disabled:opacity-50"
+              >
+                {savingChk
+                  ? "กำลังบันทึก..."
+                  : editingChkId
+                  ? "บันทึกการแก้ไขชุด Checklist"
+                  : "+ เพิ่มชุด Checklist เข้าคลังกลาง"}
+              </button>
             </form>
           </div>
         </div>

@@ -1,13 +1,14 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { Category, Task, TaskPriority, TaskStatus } from "@/lib/types";
+import { Category, ChecklistTemplate, Task, TaskPriority, TaskStatus } from "@/lib/types";
 import { supabase } from "@/lib/supabase";
 
 interface TaskDrawerProps {
   task: Task | null;
   categories: Category[];
   allTasks: Task[];
+  checklistTemplates: ChecklistTemplate[];
   isViewer: boolean;
   activeTimerTaskId: string | null;
   timerStartTime: number | null;
@@ -15,37 +16,20 @@ interface TaskDrawerProps {
   onSaveTask: (updated: Partial<Task> & { id?: string }) => Promise<void>;
   onDeleteTask: (taskId: string) => Promise<void>;
   onDuplicateTask: (task: Task) => Promise<void>;
+  onCreateChecklistTemplate: (name: string, items: string[]) => Promise<void>;
+  onUpdateChecklistTemplate: (id: string, name: string, items: string[]) => Promise<void>;
+  onDeleteChecklistTemplate: (id: string) => Promise<void>;
   onRefresh: () => Promise<void>;
   onSelectTask: (task: Task) => void;
   onStartTimer: (taskId: string) => void;
   onStopTimer: (taskId: string) => Promise<void>;
 }
 
-const REUSABLE_CHECKLIST_PACKS = [
-  {
-    name: "ชุดเอกสารรับพนักงานใหม่ (Onboarding Pack)",
-    items: [
-      "สัญญาจ้างงานและข้อตกลงรักษาความลับ (NDA)",
-      "สำเนาบัตรประชาชน ทะเบียนบ้าน และวุฒิการศึกษา",
-      "แบบฟอร์มขึ้นทะเบียนผู้ประกันตน สปส. 1-03",
-      "แบบแจ้งรายการเพื่อการหักลดหย่อนภาษี (ล.ย.01)",
-    ],
-  },
-  {
-    name: "ชุดตรวจสอบปิดงวด Payroll ประจำเดือน",
-    items: [
-      "กระทบยอดสถิติขาด-ลา-มาสาย และค่าล่วงเวลา (OT)",
-      "ตรวจสอบรายการปรับฐานเงินเดือนและค่าคอมมิชชัน",
-      "ตรวจทานยอดหักประกันสังคม 5% และภาษี ภ.ง.ด.1",
-      "ส่งไฟล์ Batch โอนเงินเดือนเข้าธนาคารและออก e-Payslip",
-    ],
-  },
-];
-
 export default function TaskDrawer({
   task,
   categories,
   allTasks,
+  checklistTemplates,
   isViewer,
   activeTimerTaskId,
   timerStartTime,
@@ -53,6 +37,9 @@ export default function TaskDrawer({
   onSaveTask,
   onDeleteTask,
   onDuplicateTask,
+  onCreateChecklistTemplate,
+  onUpdateChecklistTemplate,
+  onDeleteChecklistTemplate,
   onRefresh,
   onSelectTask,
   onStartTimer,
@@ -78,6 +65,13 @@ export default function TaskDrawer({
   const [manualNote, setManualNote] = useState<string>("");
   const [uploadingFile, setUploadingFile] = useState<boolean>(false);
   const [elapsedSeconds, setElapsedSeconds] = useState<number>(0);
+
+  // Checklist Library Manager state
+  const [showLibraryManager, setShowLibraryManager] = useState<boolean>(false);
+  const [editingTplId, setEditingTplId] = useState<string | null>(null);
+  const [tplName, setTplName] = useState<string>("");
+  const [tplItemsText, setTplItemsText] = useState<string>("");
+  const [savingTpl, setSavingTpl] = useState<boolean>(false);
 
   useEffect(() => {
     if (task) {
@@ -185,7 +179,7 @@ export default function TaskDrawer({
   };
 
   const handleImportChecklistPack = async (items: string[]) => {
-    if (!task.id || isViewer) return;
+    if (!task.id || isViewer || items.length === 0) return;
     await supabase.from("checklist_items").insert(
       items.map((text, idx) => ({
         task_id: task.id,
@@ -195,6 +189,41 @@ export default function TaskDrawer({
       }))
     );
     await onRefresh();
+  };
+
+  const handleSaveTemplatePack = async () => {
+    const lines = tplItemsText
+      .split("\n")
+      .map((l) => l.replace(/^[-•*]\s*/, "").trim())
+      .filter(Boolean);
+    if (!tplName.trim() || lines.length === 0) return;
+    setSavingTpl(true);
+    try {
+      if (editingTplId) {
+        await onUpdateChecklistTemplate(editingTplId, tplName.trim(), lines);
+      } else {
+        await onCreateChecklistTemplate(tplName.trim(), lines);
+      }
+      setEditingTplId(null);
+      setTplName("");
+      setTplItemsText("");
+    } finally {
+      setSavingTpl(false);
+    }
+  };
+
+  const handleStartEditTemplate = (tpl: ChecklistTemplate) => {
+    setEditingTplId(tpl.id);
+    setTplName(tpl.name);
+    setTplItemsText((Array.isArray(tpl.items) ? tpl.items : []).map((i) => `- ${i}`).join("\n"));
+  };
+
+  const handlePrefillFromCurrentTask = () => {
+    if (checklist.length === 0) return;
+    setShowLibraryManager(true);
+    setEditingTplId(null);
+    setTplName(`ชุดเช็กลิสต์: ${task.title}`);
+    setTplItemsText(checklist.map((c) => `- ${c.text}`).join("\n"));
   };
 
   // Subtask creation (FR-2.4)
@@ -503,28 +532,158 @@ export default function TaskDrawer({
                   </div>
 
                   {!isViewer && (
-                    <select
-                      onChange={(e) => {
-                        const idx = Number(e.target.value);
-                        if (!isNaN(idx) && REUSABLE_CHECKLIST_PACKS[idx]) {
-                          handleImportChecklistPack(REUSABLE_CHECKLIST_PACKS[idx].items);
-                        }
-                        e.target.value = "";
-                      }}
-                      defaultValue=""
-                      className="px-3 py-1 rounded-full bg-surface-container-lowest font-label-sm font-bold text-primary shadow-sm"
-                    >
-                      <option value="" disabled>
-                        + ดึงจากคลัง Checklist กลาง (FR-15.4)
-                      </option>
-                      {REUSABLE_CHECKLIST_PACKS.map((pack, idx) => (
-                        <option key={idx} value={idx}>
-                          {pack.name} ({pack.items.length} ข้อ)
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <select
+                        onChange={(e) => {
+                          const tpl = checklistTemplates.find((p) => p.id === e.target.value);
+                          if (tpl && Array.isArray(tpl.items)) {
+                            handleImportChecklistPack(tpl.items);
+                          }
+                          e.target.value = "";
+                        }}
+                        defaultValue=""
+                        className="px-3 py-1.5 rounded-full bg-surface-container-lowest font-label-sm font-bold text-primary shadow-sm border border-slate-200 max-w-[260px]"
+                      >
+                        <option value="" disabled>
+                          + ดึงจากคลัง Checklist กลาง ({checklistTemplates.length} ชุด)
                         </option>
-                      ))}
-                    </select>
+                        {checklistTemplates.map((pack) => (
+                          <option key={pack.id} value={pack.id}>
+                            {pack.name} ({Array.isArray(pack.items) ? pack.items.length : 0} ข้อ)
+                          </option>
+                        ))}
+                      </select>
+
+                      <button
+                        type="button"
+                        onClick={() => setShowLibraryManager(!showLibraryManager)}
+                        className={`px-3 py-1.5 rounded-full font-label-sm font-bold flex items-center gap-1 transition-all border ${
+                          showLibraryManager
+                            ? "bg-primary-container text-white border-primary-container"
+                            : "bg-white text-slate-700 border-slate-200 hover:bg-blue-50 hover:text-primary"
+                        }`}
+                      >
+                        <span className="material-symbols-outlined text-sm">library_add</span>
+                        <span>{showLibraryManager ? "ปิดจัดการคลัง" : "จัดการคลัง"}</span>
+                      </button>
+
+                      {checklist.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={handlePrefillFromCurrentTask}
+                          title="บันทึกเช็กลิสต์ของงานนี้เก็บไว้ในคลังกลางเพื่อใช้กับงานอื่น"
+                          className="px-3 py-1.5 rounded-full bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 font-label-sm font-bold flex items-center gap-1 transition-all"
+                        >
+                          <span className="material-symbols-outlined text-sm">bookmark_add</span>
+                          <span>บันทึกเข้าคลัง</span>
+                        </button>
+                      )}
+                    </div>
                   )}
                 </div>
+
+                {/* Inline Checklist Library Manager */}
+                {!isViewer && showLibraryManager && (
+                  <div className="mb-4 p-4 rounded-2xl bg-white border-2 border-blue-200 shadow-sm space-y-3.5">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-extrabold text-primary flex items-center gap-1.5">
+                        <span className="material-symbols-outlined text-base">inventory_2</span>
+                        จัดการคลัง Checklist กลาง ({checklistTemplates.length} ชุด)
+                      </span>
+                      {editingTplId && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditingTplId(null);
+                            setTplName("");
+                            setTplItemsText("");
+                          }}
+                          className="text-xs font-bold text-slate-500 hover:text-slate-800"
+                        >
+                          ยกเลิกแก้ไข
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Existing packs list */}
+                    {checklistTemplates.length > 0 && (
+                      <div className="space-y-1.5 max-h-40 overflow-y-auto pr-1">
+                        {checklistTemplates.map((tpl) => (
+                          <div
+                            key={tpl.id}
+                            className={`px-3 py-2 rounded-xl flex items-center justify-between gap-2 text-xs border ${
+                              editingTplId === tpl.id
+                                ? "bg-blue-50 border-blue-300"
+                                : "bg-slate-50 border-slate-200/80"
+                            }`}
+                          >
+                            <div className="min-w-0 flex-1">
+                              <div className="font-bold text-slate-900 truncate">{tpl.name}</div>
+                              <div className="text-slate-500">
+                                {Array.isArray(tpl.items) ? tpl.items.length : 0} รายการ
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-1 shrink-0">
+                              <button
+                                type="button"
+                                onClick={() => handleStartEditTemplate(tpl)}
+                                className="px-2.5 py-1 rounded-lg bg-white hover:bg-blue-100 text-slate-700 hover:text-primary font-bold border border-slate-200"
+                              >
+                                แก้ไข
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  if (
+                                    window.confirm(`ต้องการลบชุด "${tpl.name}" ออกจากคลังใช่หรือไม่?`)
+                                  ) {
+                                    onDeleteChecklistTemplate(tpl.id);
+                                  }
+                                }}
+                                className="px-2 py-1 rounded-lg bg-white hover:bg-red-50 text-slate-400 hover:text-red-600 font-bold border border-slate-200"
+                                title="ลบชุดนี้"
+                              >
+                                ✕
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Create / Edit Pack Form */}
+                    <div className="space-y-2 pt-2 border-t border-slate-100">
+                      <input
+                        type="text"
+                        value={tplName}
+                        onChange={(e) => setTplName(e.target.value)}
+                        placeholder="ชื่อชุด Checklist เช่น ขั้นตอนสรรหาพนักงาน Sales..."
+                        className="w-full px-3.5 py-2 rounded-xl bg-slate-100 text-sm font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-primary"
+                      />
+                      <textarea
+                        rows={4}
+                        value={tplItemsText}
+                        onChange={(e) => setTplItemsText(e.target.value)}
+                        placeholder={"ใส่รายการเช็กลิสต์ บรรทัดละ 1 ข้อ เช่น\n- โพสต์ประกาศรับสมัครงาน\n- คัดกรองเรซูเม่ผู้สมัคร\n- นัดสัมภาษณ์รอบแรก"}
+                        className="w-full px-3.5 py-2 rounded-xl bg-slate-100 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-primary"
+                      />
+                      <div className="flex justify-end">
+                        <button
+                          type="button"
+                          disabled={savingTpl || !tplName.trim() || !tplItemsText.trim()}
+                          onClick={handleSaveTemplatePack}
+                          className="px-4 py-2 rounded-full bg-primary-container text-white text-xs font-extrabold shadow-sm hover:opacity-95 disabled:opacity-50"
+                        >
+                          {savingTpl
+                            ? "กำลังบันทึก..."
+                            : editingTplId
+                            ? "บันทึกการแก้ไขชุด Checklist"
+                            : "+ เพิ่มเข้าคลัง Checklist กลาง"}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 <div className="w-full h-2 bg-surface-container-high rounded-full overflow-hidden mb-4">
                   <div

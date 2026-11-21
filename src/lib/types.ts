@@ -24,6 +24,14 @@ export interface PresetChecklistTemplate {
   order: number;
 }
 
+export interface ChecklistTemplate {
+  id: string;
+  name: string;
+  items: string[];
+  created_at: string;
+  updated_at?: string;
+}
+
 export interface Preset {
   id: string;
   user_id?: string | null;

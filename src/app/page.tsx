@@ -4,6 +4,7 @@ import React, { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/lib/supabase";
 import {
   Category,
+  ChecklistTemplate,
   Preset,
   Task,
   TaskDependency,
@@ -26,6 +27,7 @@ export default function HomePage() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [presets, setPresets] = useState<Preset[]>([]);
+  const [checklistTemplates, setChecklistTemplates] = useState<ChecklistTemplate[]>([]);
   const [dependencies, setDependencies] = useState<TaskDependency[]>([]);
   // initialLoading is ONLY true on the very first page open, so child views never unmount or reset filters!
   const [initialLoading, setInitialLoading] = useState<boolean>(true);
@@ -44,7 +46,7 @@ export default function HomePage() {
   // Background silent refresh (never sets initialLoading back to true!)
   const fetchAllData = useCallback(async () => {
     try {
-      const [catsRes, presetsRes, tasksRes, depsRes] = await Promise.all([
+      const [catsRes, presetsRes, tasksRes, depsRes, chkTplRes] = await Promise.all([
         supabase.from("categories").select("*").order("sort_order", { ascending: true }),
         supabase.from("presets").select("*").order("created_at", { ascending: true }),
         supabase
@@ -52,6 +54,7 @@ export default function HomePage() {
           .select("*, checklist_items(*), comments(*), attachments(*), time_entries(*)")
           .order("position", { ascending: true }),
         supabase.from("task_dependencies").select("*"),
+        supabase.from("checklist_templates").select("*").order("created_at", { ascending: true }),
       ]);
 
       const cats = (catsRes.data || []) as Category[];
@@ -70,6 +73,7 @@ export default function HomePage() {
 
       setCategories(cats);
       setPresets((presetsRes.data || []) as Preset[]);
+      setChecklistTemplates((chkTplRes.data || []) as ChecklistTemplate[]);
       setTasks(enrichedTasks);
       setDependencies((depsRes.data || []) as TaskDependency[]);
 
@@ -326,6 +330,35 @@ export default function HomePage() {
   const handleDeletePreset = async (presetId: string) => {
     setPresets((prev) => prev.filter((p) => p.id !== presetId));
     await supabase.from("presets").delete().eq("id", presetId);
+    await fetchAllData();
+  };
+
+  const handleCreateChecklistTemplate = async (name: string, items: string[]) => {
+    await supabase.from("checklist_templates").insert({
+      name: name.trim(),
+      items,
+    });
+    await fetchAllData();
+  };
+
+  const handleUpdateChecklistTemplate = async (id: string, name: string, items: string[]) => {
+    setChecklistTemplates((prev) =>
+      prev.map((tpl) => (tpl.id === id ? { ...tpl, name: name.trim(), items } : tpl))
+    );
+    await supabase
+      .from("checklist_templates")
+      .update({
+        name: name.trim(),
+        items,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", id);
+    await fetchAllData();
+  };
+
+  const handleDeleteChecklistTemplate = async (id: string) => {
+    setChecklistTemplates((prev) => prev.filter((tpl) => tpl.id !== id));
+    await supabase.from("checklist_templates").delete().eq("id", id);
     await fetchAllData();
   };
 
@@ -642,11 +675,15 @@ export default function HomePage() {
                   presets={presets}
                   categories={categories}
                   tasks={visibleTasks}
+                  checklistTemplates={checklistTemplates}
                   isViewer={false}
                   onLaunchPreset={handleLaunchPreset}
                   onCreatePreset={handleCreatePreset}
                   onUpdatePreset={handleUpdatePreset}
                   onDeletePreset={handleDeletePreset}
+                  onCreateChecklistTemplate={handleCreateChecklistTemplate}
+                  onUpdateChecklistTemplate={handleUpdateChecklistTemplate}
+                  onDeleteChecklistTemplate={handleDeleteChecklistTemplate}
                   onRefreshTasks={fetchAllData}
                 />
               )}
@@ -660,6 +697,7 @@ export default function HomePage() {
         task={selectedTask}
         categories={categories}
         allTasks={tasks}
+        checklistTemplates={checklistTemplates}
         isViewer={false}
         activeTimerTaskId={activeTimerTaskId}
         timerStartTime={timerStartTime}
@@ -667,6 +705,9 @@ export default function HomePage() {
         onSaveTask={handleSaveTask}
         onDeleteTask={handleDeleteTask}
         onDuplicateTask={handleDuplicateTask}
+        onCreateChecklistTemplate={handleCreateChecklistTemplate}
+        onUpdateChecklistTemplate={handleUpdateChecklistTemplate}
+        onDeleteChecklistTemplate={handleDeleteChecklistTemplate}
         onRefresh={fetchAllData}
         onSelectTask={(t) => setSelectedTask(t)}
         onStartTimer={handleStartTimer}
